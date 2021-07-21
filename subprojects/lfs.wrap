@@ -1,0 +1,4 @@
+[wrap-git]
+url = https://github.com/keplerproject/luafilesystem.git
+revision = 7c6e1b013caec0602ca4796df3b1d7253a2dd258
+patch_directory = lfs

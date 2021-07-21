@@ -1,0 +1,109 @@
+diff --git a/loadlib.c b/loadlib.c
+index 6f9fa373..b5a52d4b 100644
+--- a/loadlib.c
++++ b/loadlib.c
+@@ -621,6 +621,86 @@ static int searcher_preload (lua_State *L) {
+ }
+ 
+ 
++static int searcher_static_Lua (lua_State* L) {
++  const char *name = luaL_checkstring(L, 1);
++  #define match_static_Lua(packname, symbname)      \
++  if(strcmp(packname, name) == 0){                  \
++    extern const char _binary_##symbname##_start[]; \
++    extern const char _binary_##symbname##_end[];   \
++    int stat = (luaL_loadbuffer(L,                  \
++                    _binary_##symbname##_start,     \
++                    _binary_##symbname##_end -      \
++                    _binary_##symbname##_start,     \
++                    name) == LUA_OK);               \
++    if (l_likely(stat))                             \
++      return lua_pushliteral(L, ":static_Lua:"), 2; \
++    else                                            \
++      return lua_pushfstring(L, "error loading statically-linked module '%s':\n\t%s", \
++                                name, lua_tostring(L, -1)), 1; \
++  }
++  match_static_Lua("posix",            posix)
++  match_static_Lua("posix._base",      posix__base)
++  match_static_Lua("posix._bitwise",   posix__bitwise)
++  match_static_Lua("posix._strict",    posix__strict)
++  match_static_Lua("posix.compat",     posix_compat)
++  match_static_Lua("posix.deprecated", posix_deprecated)
++  match_static_Lua("posix.sys",        posix_sys)
++  match_static_Lua("posix.util",       posix_util)
++  match_static_Lua("posix.version",    posix_version)
++  match_static_Lua("re",               re)
++  match_static_Lua("term",             term)
++  match_static_Lua("term.colors",      term_colors)
++  match_static_Lua("term.cursor",      term_cursor)
++  lua_pushfstring(L, "no Lua module '%s' statically linked in", name);
++  return 1;
++}
++
++
++static int searcher_static_C (lua_State* L) {
++  const char *name = luaL_checkstring(L, 1);
++  #define match_static_C(packname, packfunc)     \
++  if(strcmp(packname, name) == 0){               \
++    extern int luaopen_##packfunc(lua_State* L); \
++    lua_pushcfunction(L, luaopen_##packfunc);    \
++    lua_pushliteral(L, ":static_C:");            \
++    return 2;                                    \
++  }
++  match_static_C("lfs",                lfs               );
++  match_static_C("lpeg",               lpeg              );
++  match_static_C("posix.ctype",        posix_ctype       );
++  match_static_C("posix.dirent",       posix_dirent      );
++  match_static_C("posix.errno",        posix_errno       );
++  match_static_C("posix.fcntl",        posix_fcntl       );
++  match_static_C("posix.fnmatch",      posix_fnmatch     );
++  match_static_C("posix.glob",         posix_glob        );
++  match_static_C("posix.grp",          posix_grp         );
++  match_static_C("posix.libgen",       posix_libgen      );
++  match_static_C("posix.poll",         posix_poll        );
++  match_static_C("posix.pwd",          posix_pwd         );
++  match_static_C("posix.sched",        posix_sched       );
++  match_static_C("posix.signal",       posix_signal      );
++  match_static_C("posix.stdio",        posix_stdio       );
++  match_static_C("posix.stdlib",       posix_stdlib      );
++  match_static_C("posix.sys.msg",      posix_sys_msg     );
++  match_static_C("posix.sys.resource", posix_sys_resource);
++  match_static_C("posix.sys.socket",   posix_sys_socket  );
++  match_static_C("posix.sys.stat",     posix_sys_stat    );
++  match_static_C("posix.sys.statvfs",  posix_sys_statvfs );
++  match_static_C("posix.sys.time",     posix_sys_time    );
++  match_static_C("posix.sys.times",    posix_sys_times   );
++  match_static_C("posix.sys.utsname",  posix_sys_utsname );
++  match_static_C("posix.sys.wait",     posix_sys_wait    );
++  match_static_C("posix.syslog",       posix_syslog      );
++  match_static_C("posix.termio",       posix_termio      );
++  match_static_C("posix.time",         posix_time        );
++  match_static_C("posix.unistd",       posix_unistd      );
++  match_static_C("posix.utime",        posix_utime       );
++  match_static_C("term.core",          term_core         );
++  lua_pushfstring(L, "no module '%s' statically linked in", name);
++  return 1;
++}
++
++
+ static void findloader (lua_State *L, const char *name) {
+   int i;
+   luaL_Buffer msg;  /* to build error message */
+@@ -708,8 +788,15 @@ static const luaL_Reg ll_funcs[] = {
+ 
+ 
+ static void createsearcherstable (lua_State *L) {
+-  static const lua_CFunction searchers[] =
+-    {searcher_preload, searcher_Lua, searcher_C, searcher_Croot, NULL};
++  static const lua_CFunction searchers[] = {
++    searcher_preload,
++    searcher_static_Lua,
++    searcher_static_C,
++    searcher_Lua,
++    searcher_C,
++    searcher_Croot,
++    NULL
++  };
+   int i;
+   /* create 'searchers' table */
+   lua_createtable(L, sizeof(searchers)/sizeof(searchers[0]) - 1, 0);

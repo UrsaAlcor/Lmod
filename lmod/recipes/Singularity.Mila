@@ -1,0 +1,184 @@
+Bootstrap: docker
+From: alpine:3.14.0
+Stage: setup
+
+
+%setup
+test -d .git  # Assert we are building from the Git root directory.
+mkdir -p "${SINGULARITY_ROOTFS}/cvmfs"
+cp -a . "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
+cd "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
+git clean -d -f -x
+
+
+%post
+# Install prerequisite packages
+apk add -U --no-cache bash zsh tcsh fish less procps grep nano
+apk add -U --no-cache alpine-sdk libtool perl bsd-compat-headers linux-headers \
+                      util-linux coreutils python3 meson
+
+
+# Build & install static Lua
+export LMOD_PREFIX="/cvmfs/config.mila.quebec"
+export LMOD_ROOT="${LMOD_PREFIX}/lmod"
+export LMOD_CONFIG_PREFIX="${LMOD_ROOT}/etc/lmod"
+export LMOD_MODULE_ROOT="${LMOD_ROOT}/modulefiles"
+export LUA_PREFIX="${LMOD_ROOT}/lua"
+if   [ "$(uname -m)" = "x86_64" ]; then
+  export CFLAGS="-march=x86-64 -mtune=haswell" # Should perform well on Zen2 as well
+elif [ "$(uname -m)" = "ppc64le" ]; then
+  export CFLAGS="-mtune=power9"                # Should perform well on POWER8 as well
+fi
+cd "${LMOD_PREFIX}"
+meson setup -Dprefix="$LUA_PREFIX" \
+            -Dbindir=''            \
+            -Dbuildtype=minsize    \
+            -Db_staticpic=false    \
+            -Db_ndebug=true        \
+            -Db_lto=true           \
+            build
+meson compile -C build
+meson install -C build
+
+
+# Create symlinks and wrappers of various kinds to the static Lua(c).
+LUA_NAME="$(basename $LUA_PREFIX/lua*)"
+LUAC_NAME="luac${LUA_NAME#lua}"
+LUA_NOARCH_NAME="${LUA_NAME%.*}"
+LUAC_NOARCH_NAME="${LUAC_NAME%.*}"
+ln -s "${LUA_NAME}" "${LUA_PREFIX}/${LUAC_NAME}"
+echo -e "#!/bin/sh\nexec \"$LUA_PREFIX/$LUA_NOARCH_NAME.$(uname -m)\" \"\$@\"" > \
+                          "$LUA_PREFIX/$LUA_NOARCH_NAME"
+echo -e "#!/bin/sh\nexec \"$LUA_PREFIX/$LUAC_NOARCH_NAME.$(uname -m)\" \"\$@\"" > \
+                          "$LUA_PREFIX/$LUAC_NOARCH_NAME"
+chmod 755                 "$LUA_PREFIX/$LUA_NOARCH_NAME" \
+                          "$LUA_PREFIX/$LUAC_NOARCH_NAME"
+
+
+#
+# Prepare and install Lmod to its final location.
+#
+# The environment variables LD_LIBRARY_PATH and LD_PRELOAD are unset because
+# they are completely useless (our Lua build is fully statically linked), yet
+# the installation script still records these (strangely enough) and within a
+# Singularity %post section these variables contain "magic" directories proper
+# to Singularity itself.
+#
+cd "${LMOD_PREFIX}/subprojects/lmod"
+./configure --help
+env -u LD_LIBRARY_PATH -u LD_PRELOAD \
+./configure --prefix="${LMOD_PREFIX}" \
+            --with-lua="${LUA_PREFIX}/${LUA_NOARCH_NAME}" \
+            --with-luac="${LUA_PREFIX}/${LUAC_NOARCH_NAME}" \
+            --with-tcl=no \
+            --with-module-root-path="" \
+            --with-ModulePathInit="${LMOD_CONFIG_PREFIX}/modulespath" \
+            --with-shortTime=3600 \
+            --with-availExtensions=yes \
+            --with-caseIndependentSorting=no \
+            --with-colorize=yes \
+            --with-useDotFiles=yes
+make install &> /dev/null
+
+
+# Clean up Meson caches and subproject checkouts (which are fully reproducible)
+cd "${LMOD_PREFIX}"
+meson subprojects purge --confirm
+rm -Rf build subprojects/packagecache
+
+
+#
+# Final step: Hook up the various shells to make use of Lmod using short shell
+# scripts that source our etc/. The generated shell scripts are:
+#   - /etc/profile.d/z00-lmod.sh      (for sh,bash,ash,dash,zsh)
+#   - /etc/profile.d/z00-lmod.csh     (for csh,tcsh)
+#   - /etc/fish/conf.d/z00-lmod.fish  (for fish)
+# The shell scripts are careful to preinitialize MODULEPATH to the correct
+# arch-dependent root module path, as the modulespath init file is incapable
+# of doing so (and is therefore empty).
+#
+cat << EOF > /etc/profile.d/z00-lmod.sh
+if [ -r "${LMOD_ROOT}/lmod/init/profile" ]; then
+    MODULEPATH="${LMOD_MODULE_ROOT}"/\`uname -m\`
+    export MODULEPATH
+    .   "${LMOD_ROOT}/lmod/init/profile"
+    for f in "\${LMOD_ROOT}/etc/profile.d"/*.sh; do
+        if [ -r "\$f" ]; then
+            .   "\$f"
+        fi
+    done
+fi
+EOF
+cat << EOF > /etc/profile.d/z00-lmod.csh
+if ( -r    "${LMOD_ROOT}/lmod/init/cshrc" ) then
+    setenv MODULEPATH "${LMOD_MODULE_ROOT}"/\`uname -m\`
+    source "${LMOD_ROOT}/lmod/init/cshrc"
+    foreach f ("\${LMOD_ROOT}/etc/profile.d"/*.csh)
+        if ( -r    "\$f" ) then
+            source "\$f"
+        endif
+    end
+endif
+EOF
+cat << EOF > /etc/fish/conf.d/z00-lmod.fish
+if test -r "$LMOD_ROOT/lmod/init/profile.fish"
+    set -gx MODULEPATH "${LMOD_MODULE_ROOT}"/(uname -m)
+    source "$LMOD_ROOT/lmod/init/profile.fish"
+    for f in "\$LMOD_ROOT/etc/fish/conf.d"/*.fish
+        if test -r "\$f"
+            source "\$f"
+        end
+    end
+end
+EOF
+
+
+
+
+Bootstrap: docker
+From: alpine:3.14.0
+Stage: final
+
+
+%files from setup
+/cvmfs
+/etc/profile.d/z00-lmod.sh
+/etc/profile.d/z00-lmod.csh
+/etc/fish/conf.d/z00-lmod.fish
+
+
+
+%environment
+#
+# Defeat Singularity's imposition of the --norc flag when Bash is invoked.
+#
+# Instead impose the -l (--login) flag, which forces a read of
+# /etc/profile, which does exist and sources the scripts we
+# need it to.
+#
+# Inspired from https://github.com/hpcng/singularity/issues/5541#issuecomment-683905623
+#
+case "${0##*/}" in
+shell)
+    if   [ "${SINGULARITY_SHELL:-}" = "/bin/bash" ]; then
+        set -- -l
+    elif [ "${SINGULARITY_SHELL:-}" = "/bin/sh" ]; then
+        set -- -l
+    elif [ "${SINGULARITY_SHELL:-}" = "/bin/ash" ]; then
+        set -- -l
+    elif [ "${SINGULARITY_SHELL:-}" = "/bin/zsh" ]; then
+        set -- -l
+    elif test -z "${SINGULARITY_SHELL:-}"; then
+        export SINGULARITY_SHELL=/bin/bash
+        set -- -l
+    fi
+    ;;
+esac
+
+
+%post
+apk add -U --no-cache bash zsh tcsh fish less procps grep nano
+apk add -U --no-cache mandoc man-pages bash-doc zsh-doc tcsh-doc fish-doc
+sed -i -e 's|/bin/ash|/bin/bash|g' /etc/passwd
+ln -sf /bin/bash /bin/sh
+rm -rf /root/.ash_history
