@@ -4,10 +4,11 @@ Stage: setup
 
 
 %setup
-test -d .git  # Assert we are building from the Git root directory.
-mkdir -p "${SINGULARITY_ROOTFS}/cvmfs"
-cp -a . "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
-cd "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
+test -d .git # Assert we are building from the Git root directory.
+mkdir -p     "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
+tar -cf - --exclude=./lmod/recipes --exclude="*.sif" . | \
+tar -xf - -C "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
+cd           "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
 git clean -d -f -x
 
 

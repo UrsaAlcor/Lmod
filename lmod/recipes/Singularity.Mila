@@ -4,10 +4,11 @@ Stage: setup
 
 
 %setup
-test -d .git  # Assert we are building from the Git root directory.
-mkdir -p "${SINGULARITY_ROOTFS}/cvmfs"
-cp -a . "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
-cd "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
+test -d .git # Assert we are building from the Git root directory.
+mkdir -p     "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
+tar -cf - --exclude=./lmod/recipes --exclude="*.sif" . | \
+tar -xf - -C "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
+cd           "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
 git clean -d -f -x
 
 
@@ -183,12 +184,16 @@ esac
 
 
 %post
+# The container-image version of this file excludes all man-pages!
+rm -f /etc/dpkg/dpkg.cfg.d/excludes
+
+# Install what's needed.
 apt-get update  -y
 apt-get upgrade -y
 apt-get install -y dialog perl libterm-readline-gnu-perl locales apt-utils \
+                   man man-db manpages manpages-dev manpages-posix manpages-posix-dev \
                    software-properties-common
 apt-add-repository ppa:fish-shell/release-3
 apt-get install -y bash bash-doc bash-completion zsh zsh-doc zsh-common \
-                   csh tcsh fish fish-common less procps grep nano \
-                   manpages manpages-posix manpages-posix-dev
+                   csh tcsh fish fish-common less procps grep nano
 echo "emulate sh -c 'source /etc/profile'" > /etc/zsh/zprofile
