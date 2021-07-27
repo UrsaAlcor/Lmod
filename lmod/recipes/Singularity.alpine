@@ -136,14 +136,14 @@ EOF
 
 
 Bootstrap: docker
-From: ubuntu:18.04
+From: alpine:3.14.0
 Stage: final
 
 
 %files from setup
 /cvmfs
 /etc/profile.d/z00-lmod.sh
-/etc/profile.d/z00-lmod.csh    /etc/csh/login.d/z00-lmod.csh
+/etc/profile.d/z00-lmod.csh
 /etc/fish/conf.d/z00-lmod.fish
 
 
@@ -166,13 +166,7 @@ shell)
         set -- -l
     elif [ "${SINGULARITY_SHELL:-}" = "/bin/ash" ]; then
         set -- -l
-    elif [ "${SINGULARITY_SHELL:-}" = "/bin/dash" ]; then
-        set -- -l
     elif [ "${SINGULARITY_SHELL:-}" = "/bin/zsh" ]; then
-        set -- -l
-    elif [ "${SINGULARITY_SHELL:-}" = "/bin/csh" ]; then
-        set -- -l
-    elif [ "${SINGULARITY_SHELL:-}" = "/bin/tcsh" ]; then
         set -- -l
     elif test -z "${SINGULARITY_SHELL:-}"; then
         export SINGULARITY_SHELL=/bin/bash
@@ -183,12 +177,8 @@ esac
 
 
 %post
-apt-get update  -y
-apt-get upgrade -y
-apt-get install -y dialog perl libterm-readline-gnu-perl locales apt-utils \
-                   software-properties-common
-apt-add-repository ppa:fish-shell/release-3
-apt-get install -y bash bash-doc bash-completion zsh zsh-doc zsh-common \
-                   csh tcsh fish fish-common less procps grep nano \
-                   manpages manpages-posix manpages-posix-dev
-echo "emulate sh -c 'source /etc/profile'" > /etc/zsh/zprofile
+apk add -U --no-cache bash zsh tcsh fish less procps grep nano
+apk add -U --no-cache mandoc man-pages bash-doc zsh-doc tcsh-doc fish-doc
+sed -i -e 's|/bin/ash|/bin/bash|g' /etc/passwd
+ln -sf /bin/bash /bin/sh
+rm -rf /root/.ash_history
