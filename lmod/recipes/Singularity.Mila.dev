@@ -1,0 +1,85 @@
+Bootstrap: localimage
+From: Mila.sif
+Stage: build
+
+
+%files
+# https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219_offline.sh
+lmod/recipes/l_BaseKit_p_2021.3.0.3219_offline.sh               /opt/
+# https://content.mellanox.com/ofed/MLNX_OFED-5.4-1.0.3.0/MLNX_OFED_LINUX-5.4-1.0.3.0-ubuntu18.04-x86_64.tgz
+lmod/recipes/MLNX_OFED_LINUX-5.4-1.0.3.0-ubuntu18.04-x86_64.tgz /opt/
+# https://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run
+lmod/recipes/cuda_10.2.89_440.33.01_linux.run                   /opt/
+# https://developer.download.nvidia.com/compute/cuda/11.0.3/local_installers/cuda_11.0.3_450.51.06_linux.run
+lmod/recipes/cuda_11.0.3_450.51.06_linux.run                    /opt/
+# https://developer.download.nvidia.com/compute/cuda/11.1.1/local_installers/cuda_11.1.1_455.32.00_linux.run
+lmod/recipes/cuda_11.1.1_455.32.00_linux.run                    /opt/
+# https://developer.download.nvidia.com/compute/cuda/11.2.2/local_installers/cuda_11.2.2_460.32.03_linux.run
+lmod/recipes/cuda_11.2.2_460.32.03_linux.run                    /opt/
+# cuDNN (registerware)
+lmod/recipes/cudnn-10.2-linux-x64-v8.1.1.33.tgz                 /opt/
+lmod/recipes/cudnn-11.2-linux-x64-v8.1.1.33.tgz                 /opt/
+# TensorRT (registerware)
+lmod/recipes/TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn8.1.tar.gz  /opt/
+lmod/recipes/TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn8.1.tar.gz  /opt/
+lmod/recipes/TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn8.1.tar.gz  /opt/
+
+
+
+%post
+apt-get update  -y
+apt-get upgrade -y
+apt-get install -y python3.6 python3.6-dev python3.6-venv \
+                   python3.7 python3.7-dev python3.7-venv \
+                   python3.8 python3.8-dev python3.8-venv \
+                   python3-setuptools
+cd /opt
+
+# MKL
+bash l_BaseKit_p_2021.3.0.3219_offline.sh -a -s --eula accept \
+      --install-dir="/cvmfs/ai.mila.quebec/apps/x86_64/common/oneAPI/2021.3.0.3219" \
+      --components 'intel.oneapi.lin.mkl.devel'
+rm   l_BaseKit_p_2021.3.0.3219_offline.sh
+rm -Rf intel  # Installer left-over junk.
+
+# OFED
+OFED=MLNX_OFED_LINUX-5.4-1.0.3.0-ubuntu18.04-x86_64
+tar -xf "$OFED".tgz
+cd      "$OFED"
+./mlnxofedinstall --force --user-space-only --without-fw-update
+cd      ..
+rm -Rf  "$OFED" "$OFED".tgz
+rm -Rf  mellanox neohost  # Installer left-over junk.
+
+# CUDA
+TK=/cvmfs/ai.mila.quebec/apps/x86_64/common/cuda
+mkdir -p "$TK/10.2"
+mkdir -p "$TK/11.0"
+mkdir -p "$TK/11.1"
+mkdir -p "$TK/11.2"
+sh cuda_10.2.89*.run --silent --override --no-man-page --toolkit --toolkitpath="$TK/10.2"
+sh cuda_11.0.3*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.0"
+sh cuda_11.1.1*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.1"
+sh cuda_11.2.2*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.2"
+rm cuda_*
+
+# cuDNN
+CUDNN=/cvmfs/ai.mila.quebec/apps/x86_64/common/cudnn
+mkdir -p "$CUDNN/10.2-v8.1"
+mkdir -p "$CUDNN/11.2-v8.1"
+ln -s 11.2-v8.1 "$CUDNN/11.0-v8.1"
+ln -s 11.2-v8.1 "$CUDNN/11.1-v8.1"
+tar --strip-components=1 -xf cudnn-10.2-linux-x64-v8.1.1.33.tgz -C "$CUDNN/10.2-v8.1"
+tar --strip-components=1 -xf cudnn-11.2-linux-x64-v8.1.1.33.tgz -C "$CUDNN/11.2-v8.1"
+rm cudnn-*
+
+# TensorRT
+TRT=/cvmfs/ai.mila.quebec/apps/x86_64/common/tensorrt
+mkdir -p "$TRT/cuda10.2-cudnn8.1-v7.2"
+mkdir -p "$TRT/cuda11.0-cudnn8.1-v7.2"
+mkdir -p "$TRT/cuda11.1-cudnn8.1-v7.2"
+ln    -s      "cuda11.1-cudnn8.1-v7.2"  "$TRT/cuda11.2-cudnn8.1-v7.2"
+tar --strip-components=1 -xf TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn8.1.tar.gz -C "$TRT/cuda10.2-cudnn8.1-v7.2"
+tar --strip-components=1 -xf TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn8.1.tar.gz -C "$TRT/cuda11.0-cudnn8.1-v7.2"
+tar --strip-components=1 -xf TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn8.1.tar.gz -C "$TRT/cuda11.1-cudnn8.1-v7.2"
+rm TensorRT-*
