@@ -16,6 +16,10 @@ lmod/recipes/cuda_11.0.3_450.51.06_linux.run                    /opt/
 lmod/recipes/cuda_11.1.1_455.32.00_linux.run                    /opt/
 # https://developer.download.nvidia.com/compute/cuda/11.2.2/local_installers/cuda_11.2.2_460.32.03_linux.run
 lmod/recipes/cuda_11.2.2_460.32.03_linux.run                    /opt/
+# https://developer.download.nvidia.com/compute/cuda/11.3.1/local_installers/cuda_11.3.1_465.19.01_linux.run
+lmod/recipes/cuda_11.3.1_465.19.01_linux.run                    /opt/
+# https://developer.download.nvidia.com/compute/cuda/11.4.0/local_installers/cuda_11.4.0_470.42.01_linux.run
+lmod/recipes/cuda_11.4.0_470.42.01_linux.run                    /opt/
 # cuDNN (registerware)
 lmod/recipes/cudnn-10.2-linux-x64-v8.1.1.33.tgz                 /opt/
 lmod/recipes/cudnn-11.2-linux-x64-v8.1.1.33.tgz                 /opt/
@@ -24,6 +28,8 @@ lmod/recipes/TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn8.1.tar.gz 
 lmod/recipes/TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn8.1.tar.gz  /opt/
 lmod/recipes/TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn8.1.tar.gz  /opt/
 
+# Linker hack
+lmod/recipes/ld.lua                                             /usr/bin/x86_64-linux-gnu-ld.lua
 
 
 %post
@@ -32,15 +38,10 @@ apt-get upgrade -y
 apt-get install -y python3.6 python3.6-dev python3.6-venv \
                    python3.7 python3.7-dev python3.7-venv \
                    python3.8 python3.8-dev python3.8-venv \
-                   python3-setuptools
+                   python3-setuptools gfortran \
+                   build-essential yasm nasm \
+                   zip unzip patchelf wget git graphviz
 cd /opt
-
-# MKL
-bash l_BaseKit_p_2021.3.0.3219_offline.sh -a -s --eula accept \
-      --install-dir="/cvmfs/ai.mila.quebec/apps/x86_64/common/oneAPI/2021.3.0.3219" \
-      --components 'intel.oneapi.lin.mkl.devel'
-rm   l_BaseKit_p_2021.3.0.3219_offline.sh
-rm -Rf intel  # Installer left-over junk.
 
 # OFED
 OFED=MLNX_OFED_LINUX-5.4-1.0.3.0-ubuntu18.04-x86_64
@@ -51,16 +52,27 @@ cd      ..
 rm -Rf  "$OFED" "$OFED".tgz
 rm -Rf  mellanox neohost  # Installer left-over junk.
 
+# MKL
+bash l_BaseKit_p_2021.3.0.3219_offline.sh -a -s --eula accept \
+      --install-dir="/cvmfs/ai.mila.quebec/apps/x86_64/common/oneAPI/2021.3.0.3219" \
+      --components 'intel.oneapi.lin.mkl.devel:intel.oneapi.lin.dnnl:intel.oneapi.lin.dal.devel:intel.oneapi.lin.dpcpp-cpp-compiler:intel.oneapi.lin.dpcpp_dbg:intel.oneapi.lin.ipp.devel:intel.oneapi.lin.ippcp.devel:intel.oneapi.lin.vpl:intel.oneapi.lin.dpl:intel.oneapi.lin.vtune'
+rm   l_BaseKit_p_2021.3.0.3219_offline.sh
+rm -Rf intel  # Installer left-over junk.
+
 # CUDA
 TK=/cvmfs/ai.mila.quebec/apps/x86_64/common/cuda
 mkdir -p "$TK/10.2"
 mkdir -p "$TK/11.0"
 mkdir -p "$TK/11.1"
 mkdir -p "$TK/11.2"
+mkdir -p "$TK/11.3"
+mkdir -p "$TK/11.4"
 sh cuda_10.2.89*.run --silent --override --no-man-page --toolkit --toolkitpath="$TK/10.2"
 sh cuda_11.0.3*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.0"
 sh cuda_11.1.1*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.1"
 sh cuda_11.2.2*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.2"
+sh cuda_11.3.1*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.3"
+sh cuda_11.4.0*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.4"
 rm cuda_*
 
 # cuDNN
@@ -83,3 +95,211 @@ tar --strip-components=1 -xf TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-10.2.
 tar --strip-components=1 -xf TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn8.1.tar.gz -C "$TRT/cuda11.0-cudnn8.1-v7.2"
 tar --strip-components=1 -xf TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn8.1.tar.gz -C "$TRT/cuda11.1-cudnn8.1-v7.2"
 rm TensorRT-*
+
+
+#
+# LINKER HACK!
+#
+mv /usr/bin/x86_64-linux-gnu-ld     /usr/bin/x86_64-linux-gnu-ld.orig
+mv /usr/bin/x86_64-linux-gnu-ld.lua /usr/bin/x86_64-linux-gnu-ld
+
+
+#
+# LZ4
+#
+export LZ4_VERSION=1.9.3
+export LZ4_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lz4/${LZ4_VERSION}"
+git clone 'https://github.com/lz4/lz4.git' && cd lz4
+git checkout v${LZ4_VERSION}
+make -j8     PREFIX="${LZ4_PREFIX}" MOREFLAGS="-mtune=haswell -Wl,-z,now"
+make install PREFIX="${LZ4_PREFIX}" MOREFLAGS="-mtune=haswell -Wl,-z,now"
+cd ..
+rm -Rf lz4
+
+
+#
+# LZMA/XZ-Utils
+#
+export LZMA_VERSION=5.2.5
+export LZMA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lzma/${LZMA_VERSION}"
+wget "https://tukaani.org/xz/xz-${LZMA_VERSION}.tar.gz"
+tar -xf xz-${LZMA_VERSION}.tar.gz && cd xz-${LZMA_VERSION}
+./configure --prefix="${LZMA_PREFIX}" && make -j8 && make install
+cd  ..
+rm  -Rf xz-${LZMA_VERSION}.tar.gz xz-${LZMA_VERSION}
+
+
+#
+# Zstd
+#
+export ZSTD_VERSION=1.5.0
+export ZSTD_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/zstd/${ZSTD_VERSION}"
+git clone 'https://github.com/facebook/zstd.git' && cd zstd
+git checkout v${ZSTD_VERSION}
+env LIBRARY_PATH="${LZ4_PREFIX}/lib:${LZMA_PREFIX}/lib" \
+    CPATH="${LZ4_PREFIX}/include:${LZMA_PREFIX}/include" \
+    make -j8     PREFIX="${ZSTD_PREFIX}" MOREFLAGS="-mtune=haswell -Wl,-z,now"
+env LIBRARY_PATH="${LZ4_PREFIX}/lib:${LZMA_PREFIX}/lib" \
+    CPATH="${LZ4_PREFIX}/include:${LZMA_PREFIX}/include" \
+    make install PREFIX="${ZSTD_PREFIX}" MOREFLAGS="-mtune=haswell -Wl,-z,now"
+cd ..
+rm -Rf zstd
+
+
+#
+# Py-LMDB
+#
+# py-lmdb uses a patched, statically-linked version of LMDB, but generally a
+# py-lmdb version bundles a specific matching LMDB version.
+#
+# Very handily, the installed source code for py-lmdb is exactly identical
+# across all Python versions except for the native C extensions, which all
+# happen to have a versioned ABI tag. Therefore, it is possible to install
+# py-lmdb for all Python 3.x versions in "overlapped" fashion, thus having
+# a common PYTHONPATH for each.
+#
+export LMDB_VERSION=0.9.29
+export LMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lmdb/${LMDB_VERSION}"
+git clone 'https://github.com/LMDB/lmdb.git' && cd lmdb/libraries/liblmdb
+git checkout LMDB_${LMDB_VERSION}
+make -j8     prefix="${LMDB_PREFIX}" XCFLAGS="-mtune=haswell -Wl,-z,now"
+make install prefix="${LMDB_PREFIX}" XCFLAGS="-mtune=haswell -Wl,-z,now"
+cd ../../..
+rm -Rf lmdb
+
+export PYLMDB_VERSION=1.2.1
+export PYLMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/py-lmdb/${PYLMDB_VERSION}"
+git clone 'https://github.com/jnwatson/py-lmdb.git' && cd py-lmdb
+git checkout py-lmdb_${PYLMDB_VERSION}
+for PYV in 3.6 3.7 3.8; do
+  python${PYV} -m venv venv${PYV}
+  . venv${PYV}/bin/activate
+  python -m pip install wheel Cython
+  env -u LMDB_FORCE_CFFI   \
+      -u LMDB_FORCE_SYSTEM \
+      -u LMDB_PURE         \
+      -u LMDB_INCLUDEDIR   \
+      -u LMDB_LIBDIR       \
+      CFLAGS=" -mtune=haswell -Wl,-z,now" \
+      LDFLAGS="-mtune=haswell -Wl,-z,now" \
+      python setup.py bdist_wheel
+  mkdir -p  "${PYLMDB_PREFIX}"
+  unzip -od "${PYLMDB_PREFIX}" dist/lmdb-*.whl
+  rm -Rf dist build
+  deactivate
+done
+cd ..
+rm -Rf py-lmdb
+
+
+#
+# OpenBLAS
+# The target list on x86_64 is
+#     SSE2:     GENERIC      (x86-64-baseline)
+#     SSE3:     Prescott
+#     SSE4.2:   Nehalem      (x86-64-v2)
+#     AVX:      Sandy Bridge
+#     AVX2+FMA: Haswell      (x86-64-v3)
+#     AVX512:   Skylake-X    (x86-64-v4)
+#     AMD AVX2: Zen2         (x86-64-v3, ~Haswell)
+#
+export OPENBLAS_VERSION=0.3.17
+export OPENBLAS_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/OpenBLAS/${OPENBLAS_VERSION}"
+git clone 'https://github.com/xianyi/OpenBLAS.git' && cd OpenBLAS
+git checkout v${OPENBLAS_VERSION}
+make USE_THREAD=1 USE_OPENMP=0 NUM_THREADS=256 BUILD_BFLOAT16=1 TARGET=GENERIC \
+     DYNAMIC_ARCH=1 DYNAMIC_LIST="PRESCOTT NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN"
+make install PREFIX="${OPENBLAS_PREFIX}"
+rmdir "${OPENBLAS_PREFIX}/bin" || true  # Usually empty.
+cd ..
+rm -Rf OpenBLAS
+
+
+#
+# Numpy
+# We link against OpenBLAS, and build for the following combinations:
+#   - v1.19.5: py3.6+
+#   - v1.20.3: py3.7+
+#   - v1.21.1: py3.7+
+# Numpy's setup.py seems to ignore CPATH and LIBRARY_PATH; It seems to only
+# care about
+#   - OPENBLAS (for OpenBLAS) or
+#   - MKLROOT  (for MKL)
+# to find the location of the library.
+#
+export OPENBLAS="${OPENBLAS_PREFIX}"
+export NPY_BLAS_ORDER="OpenBLAS"
+export NPY_LAPACK_ORDER="OpenBLAS"
+export NPY_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/numpy"
+export NPY_NUM_BUILD_JOBS=8
+git clone https://github.com/numpy/numpy.git Numpy && cd Numpy
+git clean -xdf
+for NPY in 1.19.5 1.20.3 1.21.1; do
+  git checkout v$NPY
+  if [ "$NPY" = 1.19.5 ]; then PYV_LIST="3.6 3.7 3.8"
+  else                         PYV_LIST="    3.7 3.8"
+  fi
+  for PYV in $PYV_LIST; do
+    PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
+    if [ ! -e /opt/venv${PYV} ]; then
+      python${PYV} -m venv /opt/venv${PYV}
+    fi
+    . /opt/venv${PYV}/bin/activate
+    python -m pip install wheel Cython
+    python setup.py bdist_wheel
+    mkdir -p "${NPY_PREFIX}/${NPY}-cp${PYVS}"
+    unzip -d "${NPY_PREFIX}/${NPY}-cp${PYVS}" dist/numpy-*.whl
+    git clean -xdf
+    deactivate
+  done
+done
+cd ..
+rm -Rf Numpy
+
+
+#
+# Scipy
+# The BLAS configuration uses the same mechanism as Numpy, but Scipy also
+# depends on a package called Pythran.
+#
+# We deliberately build against the oldest Numpy from above.
+#
+export NPY_OLD=1.19.5
+export SPY_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/scipy"
+git clone https://github.com/scipy/scipy.git Scipy && cd Scipy
+git clean -xdf
+for SPY in 1.5.4 1.6.3 1.7.0; do
+  # Scipy uses submodules, and git won't clean them, so blow them up and
+  # reset --hard the repo every time.
+  rm -Rf doc/scipy-sphinx-theme doc/sphinxext scipy/_lib/boost
+  git clean -xdf
+  git checkout     v$SPY
+  git reset --hard v$SPY
+  git clean -xdf
+  git submodule sync
+  git submodule update --init
+  if [ "$SPY" = 1.5.4 ]; then PYV_LIST="3.6 3.7 3.8"
+  else                        PYV_LIST="    3.7 3.8"
+  fi
+  for PYV in $PYV_LIST; do
+    PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
+    if [ ! -e /opt/venv${PYV} ]; then
+      python${PYV} -m venv /opt/venv${PYV}
+    fi
+    . /opt/venv${PYV}/bin/activate
+    env PYTHONPATH="${NPY_PREFIX}/${NPY_OLD}-cp${PYVS}:${PYTHONPATH}" python -m pip install wheel Cython pythran pybind11
+    env PYTHONPATH="${NPY_PREFIX}/${NPY_OLD}-cp${PYVS}:${PYTHONPATH}" python setup.py bdist_wheel || exit 0
+    mkdir -p "${SPY_PREFIX}/${SPY}-cp${PYVS}"
+    unzip -d "${SPY_PREFIX}/${SPY}-cp${PYVS}" dist/scipy-*.whl
+    git clean -xdf
+    deactivate
+  done
+done
+cd ..
+rm -Rf Scipy
+
+
+#
+# Cleanup
+#
+rm -Rf /opt/venv*
