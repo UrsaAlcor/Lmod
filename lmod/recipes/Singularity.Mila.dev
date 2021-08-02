@@ -300,6 +300,92 @@ rm -Rf Scipy
 
 
 #
-# Cleanup
+# Virtualenv Cleanup
 #
 rm -Rf /opt/venv*
+
+
+#
+# CUDA-related
+# We support:
+#   - Kepler  (K80 only, legacy)
+#   - Maxwell (M40 only, legacy)
+#   - Volta   (V100)
+#   - Turing  (RTX8000, TITAN RTX)
+# And on CUDA Toolkits where they are supported,
+#   - Ampere  (A100, A6000)
+#
+
+#
+# NCCL
+#
+export NCCL_VERSION=2.10.3
+export NCCL_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl"
+git clone https://github.com/NVIDIA/nccl.git NCCL && cd NCCL
+git clean -xdf
+git checkout v2.10.3-1
+for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
+  case "$CUDA" in
+    10.2 )
+      NVCC_GENCODE="-gencode=arch=compute_37,code=sm_37 -gencode=arch=compute_52,code=sm_52 \
+                    -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_75,code=sm_75"
+      ;;
+    11.0 )
+      NVCC_GENCODE="-gencode=arch=compute_37,code=sm_37 -gencode=arch=compute_52,code=sm_52 \
+                    -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_75,code=sm_75 \
+                    -gencode=arch=compute_80,code=sm_80"
+      ;;
+    11.[^0] )
+      NVCC_GENCODE="-gencode=arch=compute_37,code=sm_37 -gencode=arch=compute_52,code=sm_52 \
+                    -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_75,code=sm_75 \
+                    -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86"
+      ;;
+  esac
+  (
+    export PATH="$TK/$CUDA/bin:${PATH}"
+    export CPATH="$TK/$CUDA/include"
+    export LIBRARY_PATH="$TK/$CUDA/lib64"
+    export LDFLAGS="-Wl,-z,now,-rpath,$TK/$CUDA/lib64"
+    make -j8 src.build CUDA_HOME="$TK/$CUDA" NVCC_GENCODE="$NVCC_GENCODE"
+    make install PREFIX="$NCCL_PREFIX/$CUDA-v2.10"
+    make clean
+  )
+  git clean -xdf
+done
+cd ..
+rm -Rf NCCL
+
+
+#
+# MAGMA
+#
+export MAGMA_VERSION=2.6.1
+export MAGMA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/magma"
+git clone https://bitbucket.org/icl/magma.git MAGMA && cd MAGMA
+git clean -xdf
+git checkout v${MAGMA_VERSION}
+for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
+  case "$CUDA" in
+    10.2 )     GPU_TARGET="sm_37 sm_52 sm_70 sm_75" ;;
+    11.0 )     GPU_TARGET="sm_37 sm_52 sm_70 sm_75 sm_80" ;;
+    11.[^0] )  GPU_TARGET="sm_37 sm_52 sm_70 sm_75 sm_80 sm_86" ;;
+  esac
+  #
+  # Lightly edit the example OpenBLAS makefile as it is copied to make it more usable:
+  #   - Enable overriding GPU_TARGET
+  #   - Disable OpenMP (bad forking with GNU OMP libgomp)
+  #
+  sed -e 's/GPU_TARGET\s*=/GPU_TARGET ?=/g' \
+      -e 's/-fopenmp//g' \
+      make.inc-examples/make.inc.openblas > make.inc
+  env BACKEND=cuda \
+      CUDADIR="$TK/$CUDA" \
+      PATH="$TK/$CUDA/bin:${PATH}" \
+      LIBDIR="-L$TK/$CUDA/lib64" \
+      GPU_TARGET="$GPU_TARGET" \
+      OPENBLASDIR="$OPENBLAS_PREFIX" \
+      make install -j8 prefix="$MAGMA_PREFIX/$CUDA-v$MAGMA_VERSION"
+  git clean -xdf
+done
+cd ..
+rm -Rf MAGMA

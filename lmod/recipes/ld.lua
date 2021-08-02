@@ -95,6 +95,8 @@ for k,v in pairs(foundlist) do
      v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lmdb/') or
      v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cuda/') or
      v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cudnn/') or
+     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl/') or
+     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/magma/') or
      v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/oneAPI/') or
      v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/OpenBLAS/') or
      LD_LUA_EXTRA:match('%f[^:\0]'..v) then
