@@ -7,8 +7,8 @@ Stage: build
 # https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219_offline.sh
 lmod/recipes/l_BaseKit_p_2021.3.0.3219_offline.sh               /opt/
 # https://content.mellanox.com/ofed/MLNX_OFED-5.4-1.0.3.0/MLNX_OFED_LINUX-5.4-1.0.3.0-ubuntu18.04-x86_64.tgz
-#lmod/recipes/MLNX_OFED_LINUX-5.4-1.0.3.0-ubuntu18.04-x86_64.tgz /opt/
 # https://content.mellanox.com/ofed/MLNX_OFED-5.2-2.2.0.0/MLNX_OFED_LINUX-5.2-2.2.0.0-ubuntu18.04-x86_64.tgz
+#lmod/recipes/MLNX_OFED_LINUX-5.4-1.0.3.0-ubuntu18.04-x86_64.tgz /opt/
 lmod/recipes/MLNX_OFED_LINUX-5.2-2.2.0.0-ubuntu18.04-x86_64.tgz /opt/
 # https://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run
 lmod/recipes/cuda_10.2.89_440.33.01_linux.run                   /opt/
@@ -45,6 +45,13 @@ apt-get install -y python3.6 python3.6-dev python3.6-venv \
                    zip unzip patchelf wget git graphviz
 cd /opt
 
+#
+# - Silence extremely irritating Git "help" message
+# - Multi-core control.
+#
+git config --global advice.detachedHead false
+export NJ=${NJ:-32}
+
 # OFED
 OFED=MLNX_OFED_LINUX-5.2-2.2.0.0-ubuntu18.04-x86_64
 tar -xf "$OFED".tgz
@@ -69,12 +76,12 @@ mkdir -p "$TK/11.1"
 mkdir -p "$TK/11.2"
 mkdir -p "$TK/11.3"
 mkdir -p "$TK/11.4"
-sh cuda_10.2.89*.run --silent --override --no-man-page --toolkit --toolkitpath="$TK/10.2"
-sh cuda_11.0.3*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.0"
-sh cuda_11.1.1*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.1"
-sh cuda_11.2.2*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.2"
-sh cuda_11.3.1*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.3"
-sh cuda_11.4.0*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.4"
+sh cuda_10.2.89_*.run --silent --override --no-man-page --toolkit --toolkitpath="$TK/10.2"
+sh cuda_11.0.3_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.0"
+sh cuda_11.1.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.1"
+sh cuda_11.2.2_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.2"
+sh cuda_11.3.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.3"
+sh cuda_11.4.0_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.4"
 rm cuda_*
 
 # cuDNN
@@ -110,11 +117,11 @@ mv /usr/bin/x86_64-linux-gnu-ld.lua /usr/bin/x86_64-linux-gnu-ld
 # LZ4
 #
 export LZ4_VERSION=1.9.3
-export LZ4_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lz4/${LZ4_VERSION}"
+export LZ4_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lz4"
 git clone 'https://github.com/lz4/lz4.git' && cd lz4
-git checkout v${LZ4_VERSION}
-make -j8     PREFIX="${LZ4_PREFIX}" MOREFLAGS="-mtune=haswell -Wl,-z,now"
-make install PREFIX="${LZ4_PREFIX}" MOREFLAGS="-mtune=haswell -Wl,-z,now"
+git checkout v$LZ4_VERSION
+make install -j$NJ MOREFLAGS="-mtune=haswell -Wl,-z,now" \
+                   PREFIX="$LZ4_PREFIX/$LZ4_VERSION"
 cd ..
 rm -Rf lz4
 
@@ -123,10 +130,11 @@ rm -Rf lz4
 # LZMA/XZ-Utils
 #
 export LZMA_VERSION=5.2.5
-export LZMA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lzma/${LZMA_VERSION}"
+export LZMA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lzma"
 wget "https://tukaani.org/xz/xz-${LZMA_VERSION}.tar.gz"
 tar -xf xz-${LZMA_VERSION}.tar.gz && cd xz-${LZMA_VERSION}
-./configure --prefix="${LZMA_PREFIX}" && make -j8 && make install
+./configure --prefix="$LZMA_PREFIX/$LZMA_VERSION"
+make install -j$NJ
 cd  ..
 rm  -Rf xz-${LZMA_VERSION}.tar.gz xz-${LZMA_VERSION}
 
@@ -135,15 +143,13 @@ rm  -Rf xz-${LZMA_VERSION}.tar.gz xz-${LZMA_VERSION}
 # Zstd
 #
 export ZSTD_VERSION=1.5.0
-export ZSTD_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/zstd/${ZSTD_VERSION}"
+export ZSTD_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/zstd"
 git clone 'https://github.com/facebook/zstd.git' && cd zstd
 git checkout v${ZSTD_VERSION}
-env LIBRARY_PATH="${LZ4_PREFIX}/lib:${LZMA_PREFIX}/lib" \
-    CPATH="${LZ4_PREFIX}/include:${LZMA_PREFIX}/include" \
-    make -j8     PREFIX="${ZSTD_PREFIX}" MOREFLAGS="-mtune=haswell -Wl,-z,now"
-env LIBRARY_PATH="${LZ4_PREFIX}/lib:${LZMA_PREFIX}/lib" \
-    CPATH="${LZ4_PREFIX}/include:${LZMA_PREFIX}/include" \
-    make install PREFIX="${ZSTD_PREFIX}" MOREFLAGS="-mtune=haswell -Wl,-z,now"
+env LIBRARY_PATH="$LZ4_PREFIX/$LZ4_VERSION/lib:$LZMA_PREFIX/$LZMA_VERSION/lib" \
+    CPATH="$LZ4_PREFIX/$LZ4_VERSION/include:$LZMA_PREFIX/$LZMA_VERSION/include" \
+    make install -j$NJ MOREFLAGS="-mtune=haswell -Wl,-z,now" \
+                       PREFIX="$ZSTD_PREFIX/$ZSTD_VERSION"
 cd ..
 rm -Rf zstd
 
@@ -161,34 +167,36 @@ rm -Rf zstd
 # a common PYTHONPATH for each.
 #
 export LMDB_VERSION=0.9.29
-export LMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lmdb/${LMDB_VERSION}"
+export LMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lmdb"
 git clone 'https://github.com/LMDB/lmdb.git' && cd lmdb/libraries/liblmdb
 git checkout LMDB_${LMDB_VERSION}
-make -j8     prefix="${LMDB_PREFIX}" XCFLAGS="-mtune=haswell -Wl,-z,now"
-make install prefix="${LMDB_PREFIX}" XCFLAGS="-mtune=haswell -Wl,-z,now"
+make install -j$NJ XCFLAGS="-mtune=haswell -Wl,-z,now" \
+                   prefix="$LMDB_PREFIX/$LMDB_VERSION"
 cd ../../..
 rm -Rf lmdb
 
 export PYLMDB_VERSION=1.2.1
-export PYLMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/py-lmdb/${PYLMDB_VERSION}"
+export PYLMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/py-lmdb"
 git clone 'https://github.com/jnwatson/py-lmdb.git' && cd py-lmdb
 git checkout py-lmdb_${PYLMDB_VERSION}
 for PYV in 3.6 3.7 3.8; do
   python${PYV} -m venv venv${PYV}
-  . venv${PYV}/bin/activate
-  python -m pip install wheel Cython
-  env -u LMDB_FORCE_CFFI   \
-      -u LMDB_FORCE_SYSTEM \
-      -u LMDB_PURE         \
-      -u LMDB_INCLUDEDIR   \
-      -u LMDB_LIBDIR       \
-      CFLAGS=" -mtune=haswell -Wl,-z,now" \
-      LDFLAGS="-mtune=haswell -Wl,-z,now" \
-      python setup.py bdist_wheel
-  mkdir -p  "${PYLMDB_PREFIX}"
-  unzip -od "${PYLMDB_PREFIX}" dist/lmdb-*.whl
-  rm -Rf dist build
-  deactivate
+  (
+    . venv${PYV}/bin/activate
+    python -m pip install wheel Cython
+    env -u LMDB_FORCE_CFFI   \
+        -u LMDB_FORCE_SYSTEM \
+        -u LMDB_PURE         \
+        -u LMDB_INCLUDEDIR   \
+        -u LMDB_LIBDIR       \
+        CFLAGS=" -mtune=haswell -Wl,-z,now" \
+        LDFLAGS="-mtune=haswell -Wl,-z,now" \
+        python setup.py bdist_wheel
+    deactivate
+  )
+  mkdir -p  "$PYLMDB_PREFIX/$PYLMDB_VERSION"
+  unzip -od "$PYLMDB_PREFIX/$PYLMDB_VERSION" dist/lmdb-*.whl
+  git clean -xdff
 done
 cd ..
 rm -Rf py-lmdb
@@ -206,13 +214,13 @@ rm -Rf py-lmdb
 #     AMD AVX2: Zen2         (x86-64-v3, ~Haswell)
 #
 export OPENBLAS_VERSION=0.3.17
-export OPENBLAS_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/OpenBLAS/${OPENBLAS_VERSION}"
+export OPENBLAS_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/OpenBLAS"
 git clone 'https://github.com/xianyi/OpenBLAS.git' && cd OpenBLAS
 git checkout v${OPENBLAS_VERSION}
-make USE_THREAD=1 USE_OPENMP=0 NUM_THREADS=256 BUILD_BFLOAT16=1 TARGET=GENERIC \
-     DYNAMIC_ARCH=1 DYNAMIC_LIST="PRESCOTT NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN"
-make install PREFIX="${OPENBLAS_PREFIX}"
-rmdir "${OPENBLAS_PREFIX}/bin" || true  # Usually empty.
+make -j$NJ   USE_THREAD=1 USE_OPENMP=0 NUM_THREADS=256 BUILD_BFLOAT16=1 TARGET=GENERIC \
+             DYNAMIC_ARCH=1 DYNAMIC_LIST="PRESCOTT NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN"
+make install PREFIX="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"
+rmdir "$OPENBLAS_PREFIX/$OPENBLAS_VERSION/bin" || true  # Usually empty.
 cd ..
 rm -Rf OpenBLAS
 
@@ -229,30 +237,32 @@ rm -Rf OpenBLAS
 #   - MKLROOT  (for MKL)
 # to find the location of the library.
 #
-export OPENBLAS="${OPENBLAS_PREFIX}"
+export OPENBLAS="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"
 export NPY_BLAS_ORDER="OpenBLAS"
 export NPY_LAPACK_ORDER="OpenBLAS"
 export NPY_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/numpy"
-export NPY_NUM_BUILD_JOBS=8
+export NPY_NUM_BUILD_JOBS=$NJ
 git clone https://github.com/numpy/numpy.git Numpy && cd Numpy
-git clean -xdf
 for NPY in 1.19.5 1.20.3 1.21.1; do
+  git clean -xdff
   git checkout v$NPY
-  if [ "$NPY" = 1.19.5 ]; then PYV_LIST="3.6 3.7 3.8"
-  else                         PYV_LIST="    3.7 3.8"
+  if [ "$NPY" = 1.19.5 ]; then PYV_LIST="3.6 3.7 3.8" CPU_BASELINE=''
+  else                         PYV_LIST="    3.7 3.8" CPU_BASELINE='--cpu-baseline=sse sse2'
   fi
   for PYV in $PYV_LIST; do
     PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
     if [ ! -e /opt/venv${PYV} ]; then
       python${PYV} -m venv /opt/venv${PYV}
     fi
-    . /opt/venv${PYV}/bin/activate
-    python -m pip install wheel Cython
-    python setup.py bdist_wheel
+    (
+      . /opt/venv${PYV}/bin/activate
+      python -m pip install wheel Cython
+      python setup.py build ${CPU_BASELINE:+"$CPU_BASELINE"} bdist_wheel
+      deactivate
+    )
     mkdir -p "${NPY_PREFIX}/${NPY}-cp${PYVS}"
     unzip -d "${NPY_PREFIX}/${NPY}-cp${PYVS}" dist/numpy-*.whl
-    git clean -xdf
-    deactivate
+    git clean -xdff
   done
 done
 cd ..
@@ -269,15 +279,11 @@ rm -Rf Numpy
 export NPY_OLD=1.19.5
 export SPY_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/scipy"
 git clone https://github.com/scipy/scipy.git Scipy && cd Scipy
-git clean -xdf
 for SPY in 1.5.4 1.6.3 1.7.0; do
-  # Scipy uses submodules, and git won't clean them, so blow them up and
-  # reset --hard the repo every time.
-  rm -Rf doc/scipy-sphinx-theme doc/sphinxext scipy/_lib/boost
-  git clean -xdf
-  git checkout     v$SPY
-  git reset --hard v$SPY
-  git clean -xdf
+  # Scipy uses submodules, and git won't clean them, so blow them up.
+  git clean -xdff
+  git checkout v$SPY
+  git clean -xdff
   git submodule sync
   git submodule update --init
   if [ "$SPY" = 1.5.4 ]; then PYV_LIST="3.6 3.7 3.8"
@@ -288,13 +294,16 @@ for SPY in 1.5.4 1.6.3 1.7.0; do
     if [ ! -e /opt/venv${PYV} ]; then
       python${PYV} -m venv /opt/venv${PYV}
     fi
-    . /opt/venv${PYV}/bin/activate
-    env PYTHONPATH="${NPY_PREFIX}/${NPY_OLD}-cp${PYVS}:${PYTHONPATH}" python -m pip install wheel Cython pythran pybind11
-    env PYTHONPATH="${NPY_PREFIX}/${NPY_OLD}-cp${PYVS}:${PYTHONPATH}" python setup.py bdist_wheel || exit 0
+    (
+      . /opt/venv${PYV}/bin/activate
+      export PYTHONPATH="${NPY_PREFIX}/${NPY_OLD}-cp${PYVS}:${PYTHONPATH}"
+      python -m pip install wheel Cython pythran pybind11
+      python setup.py bdist_wheel
+      deactivate
+    )
     mkdir -p "${SPY_PREFIX}/${SPY}-cp${PYVS}"
     unzip -d "${SPY_PREFIX}/${SPY}-cp${PYVS}" dist/scipy-*.whl
-    git clean -xdf
-    deactivate
+    git clean -xdff
   done
 done
 cd ..
@@ -324,23 +333,25 @@ rm -Rf /opt/venv*
 export NCCL_VERSION=2.10.3
 export NCCL_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl"
 git clone https://github.com/NVIDIA/nccl.git NCCL && cd NCCL
-git clean -xdf
 git checkout v2.10.3-1
 for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
   case "$CUDA" in
     10.2 )
       NVCC_GENCODE="-gencode=arch=compute_37,code=sm_37 -gencode=arch=compute_52,code=sm_52 \
-                    -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_75,code=sm_75"
+                    -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_75,code=sm_75 \
+                    -Wno-deprecated-gpu-targets -Xfatbin -compress-all"
       ;;
     11.0 )
       NVCC_GENCODE="-gencode=arch=compute_37,code=sm_37 -gencode=arch=compute_52,code=sm_52 \
                     -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_75,code=sm_75 \
-                    -gencode=arch=compute_80,code=sm_80"
+                    -gencode=arch=compute_80,code=sm_80 \
+                    -Wno-deprecated-gpu-targets -Xfatbin -compress-all"
       ;;
     11.[^0] )
       NVCC_GENCODE="-gencode=arch=compute_37,code=sm_37 -gencode=arch=compute_52,code=sm_52 \
                     -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_75,code=sm_75 \
-                    -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86"
+                    -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 \
+                    -Wno-deprecated-gpu-targets -Xfatbin -compress-all"
       ;;
   esac
   (
@@ -348,11 +359,11 @@ for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
     export CPATH="$TK/$CUDA/include"
     export LIBRARY_PATH="$TK/$CUDA/lib64"
     export LDFLAGS="-Wl,-z,now,-rpath,$TK/$CUDA/lib64"
-    make -j8 src.build CUDA_HOME="$TK/$CUDA" NVCC_GENCODE="$NVCC_GENCODE"
+    make -j$NJ src.build CUDA_HOME="$TK/$CUDA" NVCC_GENCODE="$NVCC_GENCODE"
     make install PREFIX="$NCCL_PREFIX/$CUDA-v2.10"
     make clean
   )
-  git clean -xdf
+  git clean -xdff
 done
 cd ..
 rm -Rf NCCL
@@ -364,7 +375,6 @@ rm -Rf NCCL
 export MAGMA_VERSION=2.6.1
 export MAGMA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/magma"
 git clone https://bitbucket.org/icl/magma.git MAGMA && cd MAGMA
-git clean -xdf
 git checkout v${MAGMA_VERSION}
 for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
   case "$CUDA" in
@@ -381,13 +391,14 @@ for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
       -e 's/-fopenmp//g' \
       make.inc-examples/make.inc.openblas > make.inc
   env BACKEND=cuda \
-      CUDADIR="$TK/$CUDA" \
       PATH="$TK/$CUDA/bin:${PATH}" \
+      CUDADIR="$TK/$CUDA" \
       LIBDIR="-L$TK/$CUDA/lib64" \
+      OPENBLASDIR="$OPENBLAS_PREFIX/$OPENBLAS_VERSION" \
       GPU_TARGET="$GPU_TARGET" \
-      OPENBLASDIR="$OPENBLAS_PREFIX" \
-      make install -j8 prefix="$MAGMA_PREFIX/$CUDA-v$MAGMA_VERSION"
-  git clean -xdf
+      NVCCFLAGS="-Wno-deprecated-gpu-targets -Xfatbin -compress-all" \
+      make install -j$NJ prefix="$MAGMA_PREFIX/$CUDA-v$MAGMA_VERSION"
+  git clean -xdff
 done
 cd ..
 rm -Rf MAGMA
