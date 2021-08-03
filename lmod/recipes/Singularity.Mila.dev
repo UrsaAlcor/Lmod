@@ -7,7 +7,9 @@ Stage: build
 # https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219_offline.sh
 lmod/recipes/l_BaseKit_p_2021.3.0.3219_offline.sh               /opt/
 # https://content.mellanox.com/ofed/MLNX_OFED-5.4-1.0.3.0/MLNX_OFED_LINUX-5.4-1.0.3.0-ubuntu18.04-x86_64.tgz
-lmod/recipes/MLNX_OFED_LINUX-5.4-1.0.3.0-ubuntu18.04-x86_64.tgz /opt/
+#lmod/recipes/MLNX_OFED_LINUX-5.4-1.0.3.0-ubuntu18.04-x86_64.tgz /opt/
+# https://content.mellanox.com/ofed/MLNX_OFED-5.2-2.2.0.0/MLNX_OFED_LINUX-5.2-2.2.0.0-ubuntu18.04-x86_64.tgz
+lmod/recipes/MLNX_OFED_LINUX-5.2-2.2.0.0-ubuntu18.04-x86_64.tgz /opt/
 # https://developer.download.nvidia.com/compute/cuda/10.2/Prod/local_installers/cuda_10.2.89_440.33.01_linux.run
 lmod/recipes/cuda_10.2.89_440.33.01_linux.run                   /opt/
 # https://developer.download.nvidia.com/compute/cuda/11.0.3/local_installers/cuda_11.0.3_450.51.06_linux.run
@@ -44,7 +46,7 @@ apt-get install -y python3.6 python3.6-dev python3.6-venv \
 cd /opt
 
 # OFED
-OFED=MLNX_OFED_LINUX-5.4-1.0.3.0-ubuntu18.04-x86_64
+OFED=MLNX_OFED_LINUX-5.2-2.2.0.0-ubuntu18.04-x86_64
 tar -xf "$OFED".tgz
 cd      "$OFED"
 ./mlnxofedinstall --force --user-space-only --without-fw-update
