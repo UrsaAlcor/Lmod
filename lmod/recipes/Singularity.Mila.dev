@@ -21,7 +21,9 @@ lmod/recipes/cuda_11.2.2_460.32.03_linux.run                    /opt/
 # https://developer.download.nvidia.com/compute/cuda/11.3.1/local_installers/cuda_11.3.1_465.19.01_linux.run
 lmod/recipes/cuda_11.3.1_465.19.01_linux.run                    /opt/
 # https://developer.download.nvidia.com/compute/cuda/11.4.0/local_installers/cuda_11.4.0_470.42.01_linux.run
-lmod/recipes/cuda_11.4.0_470.42.01_linux.run                    /opt/
+# https://developer.download.nvidia.com/compute/cuda/11.4.1/local_installers/cuda_11.4.1_470.57.02_linux.run
+#lmod/recipes/cuda_11.4.0_470.42.01_linux.run                    /opt/
+lmod/recipes/cuda_11.4.1_470.57.02_linux.run                    /opt/
 # cuDNN (registerware)
 lmod/recipes/cudnn-10.2-linux-x64-v8.1.1.33.tgz                 /opt/
 lmod/recipes/cudnn-11.2-linux-x64-v8.1.1.33.tgz                 /opt/
@@ -81,7 +83,7 @@ sh cuda_11.0.3_*.run  --silent --override --no-man-page --toolkit --toolkitpath=
 sh cuda_11.1.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.1"
 sh cuda_11.2.2_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.2"
 sh cuda_11.3.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.3"
-sh cuda_11.4.0_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.4"
+sh cuda_11.4.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.4"
 rm cuda_*
 
 # cuDNN
