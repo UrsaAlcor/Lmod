@@ -97,8 +97,8 @@ for k,v in pairs(foundlist) do
      v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cudnn/') or
      v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl/') or
      v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/magma/') or
-     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/oneAPI/') or
-     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/OpenBLAS/') or
+     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/oneapi/') or
+     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/openblas/') or
      LD_LUA_EXTRA:match('%f[^:\0]'..v) then
     table.insert(xarg, '-rpath')
     table.insert(xarg, v)

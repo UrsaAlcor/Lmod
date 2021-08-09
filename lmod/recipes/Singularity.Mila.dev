@@ -43,16 +43,21 @@ apt-get install -y python3.6 python3.6-dev python3.6-venv \
                    python3.7 python3.7-dev python3.7-venv \
                    python3.8 python3.8-dev python3.8-venv \
                    python3-setuptools gfortran \
-                   build-essential yasm nasm \
-                   zip unzip patchelf wget git graphviz
+                   build-essential cmake yasm nasm \
+                   zip unzip patchelf wget git graphviz \
+                   libnuma-dev
 cd /opt
 
 #
 # - Silence extremely irritating Git "help" message
 # - Multi-core control.
+# - Increase reproducibility by exporting SOURCE_DATE_EPOCH variable with
+#   approximately current timestamp.
 #
 git config --global advice.detachedHead false
-export NJ=${NJ:-32}
+NJ=${NJ:-128}
+export SOURCE_DATE_EPOCH=1628563769
+
 
 # OFED
 OFED=MLNX_OFED_LINUX-5.2-2.2.0.0-ubuntu18.04-x86_64
@@ -65,7 +70,7 @@ rm -Rf  mellanox neohost  # Installer left-over junk.
 
 # MKL
 bash l_BaseKit_p_2021.3.0.3219_offline.sh -a -s --eula accept \
-      --install-dir="/cvmfs/ai.mila.quebec/apps/x86_64/common/oneAPI/2021.3.0.3219" \
+      --install-dir="/cvmfs/ai.mila.quebec/apps/x86_64/common/oneapi/2021.3.0.3219" \
       --components 'intel.oneapi.lin.mkl.devel:intel.oneapi.lin.dnnl:intel.oneapi.lin.dal.devel:intel.oneapi.lin.dpcpp-cpp-compiler:intel.oneapi.lin.dpcpp_dbg:intel.oneapi.lin.ipp.devel:intel.oneapi.lin.ippcp.devel:intel.oneapi.lin.vpl:intel.oneapi.lin.dpl:intel.oneapi.lin.vtune'
 rm   l_BaseKit_p_2021.3.0.3219_offline.sh
 rm -Rf intel  # Installer left-over junk.
@@ -87,24 +92,30 @@ sh cuda_11.4.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath=
 rm cuda_*
 
 # cuDNN
-CUDNN=/cvmfs/ai.mila.quebec/apps/x86_64/common/cudnn
-mkdir -p "$CUDNN/10.2-v8.1"
-mkdir -p "$CUDNN/11.2-v8.1"
-ln -s 11.2-v8.1 "$CUDNN/11.0-v8.1"
-ln -s 11.2-v8.1 "$CUDNN/11.1-v8.1"
-tar --strip-components=1 -xf cudnn-10.2-linux-x64-v8.1.1.33.tgz -C "$CUDNN/10.2-v8.1"
-tar --strip-components=1 -xf cudnn-11.2-linux-x64-v8.1.1.33.tgz -C "$CUDNN/11.2-v8.1"
+CUDNN_VERSION_FULL=8.1.1.33
+CUDNN_VERSION=${CUDNN_VERSION_FULL%.*}  # Strip sub-patch number
+CUDNN_VERSION=${CUDNN_VERSION%.*}       # Strip patch number
+CUDNN_PREFIX=/cvmfs/ai.mila.quebec/apps/x86_64/common/cudnn
+mkdir -p "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}"
+mkdir -p "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}"
+ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.0-v${CUDNN_VERSION}"
+ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.1-v${CUDNN_VERSION}"
+tar --strip-components=1 -xf cudnn-10.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}"
+tar --strip-components=1 -xf cudnn-11.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}"
 rm cudnn-*
 
 # TensorRT
-TRT=/cvmfs/ai.mila.quebec/apps/x86_64/common/tensorrt
-mkdir -p "$TRT/cuda10.2-cudnn8.1-v7.2"
-mkdir -p "$TRT/cuda11.0-cudnn8.1-v7.2"
-mkdir -p "$TRT/cuda11.1-cudnn8.1-v7.2"
-ln    -s      "cuda11.1-cudnn8.1-v7.2"  "$TRT/cuda11.2-cudnn8.1-v7.2"
-tar --strip-components=1 -xf TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn8.1.tar.gz -C "$TRT/cuda10.2-cudnn8.1-v7.2"
-tar --strip-components=1 -xf TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn8.1.tar.gz -C "$TRT/cuda11.0-cudnn8.1-v7.2"
-tar --strip-components=1 -xf TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn8.1.tar.gz -C "$TRT/cuda11.1-cudnn8.1-v7.2"
+TRT_VERSION_FULL=7.2.3.4
+TRT_VERSION=${TRT_VERSION_FULL%.*}  # Strip sub-patch number
+TRT_VERSION=${TRT_VERSION%.*}       # Strip patch number
+TRT_PREFIX=/cvmfs/ai.mila.quebec/apps/x86_64/common/tensorrt
+mkdir -p "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+mkdir -p "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+mkdir -p "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+ln    -s      "cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  "$TRT_PREFIX/cuda11.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
 rm TensorRT-*
 
 
@@ -118,8 +129,8 @@ mv /usr/bin/x86_64-linux-gnu-ld.lua /usr/bin/x86_64-linux-gnu-ld
 #
 # LZ4
 #
-export LZ4_VERSION=1.9.3
-export LZ4_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lz4"
+LZ4_VERSION=1.9.3
+LZ4_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lz4"
 git clone 'https://github.com/lz4/lz4.git' && cd lz4
 git checkout v$LZ4_VERSION
 make install -j$NJ MOREFLAGS="-mtune=haswell -Wl,-z,now" \
@@ -131,8 +142,8 @@ rm -Rf lz4
 #
 # LZMA/XZ-Utils
 #
-export LZMA_VERSION=5.2.5
-export LZMA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lzma"
+LZMA_VERSION=5.2.5
+LZMA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lzma"
 wget "https://tukaani.org/xz/xz-${LZMA_VERSION}.tar.gz"
 tar -xf xz-${LZMA_VERSION}.tar.gz && cd xz-${LZMA_VERSION}
 ./configure --prefix="$LZMA_PREFIX/$LZMA_VERSION"
@@ -144,8 +155,8 @@ rm  -Rf xz-${LZMA_VERSION}.tar.gz xz-${LZMA_VERSION}
 #
 # Zstd
 #
-export ZSTD_VERSION=1.5.0
-export ZSTD_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/zstd"
+ZSTD_VERSION=1.5.0
+ZSTD_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/zstd"
 git clone 'https://github.com/facebook/zstd.git' && cd zstd
 git checkout v${ZSTD_VERSION}
 env LIBRARY_PATH="$LZ4_PREFIX/$LZ4_VERSION/lib:$LZMA_PREFIX/$LZMA_VERSION/lib" \
@@ -168,8 +179,8 @@ rm -Rf zstd
 # py-lmdb for all Python 3.x versions in "overlapped" fashion, thus having
 # a common PYTHONPATH for each.
 #
-export LMDB_VERSION=0.9.29
-export LMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lmdb"
+LMDB_VERSION=0.9.29
+LMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lmdb"
 git clone 'https://github.com/LMDB/lmdb.git' && cd lmdb/libraries/liblmdb
 git checkout LMDB_${LMDB_VERSION}
 make install -j$NJ XCFLAGS="-mtune=haswell -Wl,-z,now" \
@@ -177,8 +188,8 @@ make install -j$NJ XCFLAGS="-mtune=haswell -Wl,-z,now" \
 cd ../../..
 rm -Rf lmdb
 
-export PYLMDB_VERSION=1.2.1
-export PYLMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/py-lmdb"
+PYLMDB_VERSION=1.2.1
+PYLMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/py-lmdb"
 git clone 'https://github.com/jnwatson/py-lmdb.git' && cd py-lmdb
 git checkout py-lmdb_${PYLMDB_VERSION}
 for PYV in 3.6 3.7 3.8; do
@@ -215,8 +226,8 @@ rm -Rf py-lmdb
 #     AVX512:   Skylake-X    (x86-64-v4)
 #     AMD AVX2: Zen2         (x86-64-v3, ~Haswell)
 #
-export OPENBLAS_VERSION=0.3.17
-export OPENBLAS_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/OpenBLAS"
+OPENBLAS_VERSION=0.3.17
+OPENBLAS_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/openblas"
 git clone 'https://github.com/xianyi/OpenBLAS.git' && cd OpenBLAS
 git checkout v${OPENBLAS_VERSION}
 make -j$NJ   USE_THREAD=1 USE_OPENMP=0 NUM_THREADS=256 BUILD_BFLOAT16=1 TARGET=GENERIC \
@@ -239,10 +250,10 @@ rm -Rf OpenBLAS
 #   - MKLROOT  (for MKL)
 # to find the location of the library.
 #
+NPY_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/numpy"
 export OPENBLAS="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"
 export NPY_BLAS_ORDER="OpenBLAS"
 export NPY_LAPACK_ORDER="OpenBLAS"
-export NPY_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/numpy"
 export NPY_NUM_BUILD_JOBS=$NJ
 git clone https://github.com/numpy/numpy.git Numpy && cd Numpy
 for NPY in 1.19.5 1.20.3 1.21.1; do
@@ -269,6 +280,7 @@ for NPY in 1.19.5 1.20.3 1.21.1; do
 done
 cd ..
 rm -Rf Numpy
+NPY_OLD=1.19.5   # Used as compatibility target in further recipes!
 
 
 #
@@ -278,10 +290,9 @@ rm -Rf Numpy
 #
 # We deliberately build against the oldest Numpy from above.
 #
-export NPY_OLD=1.19.5
-export SPY_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/scipy"
+SPY_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/scipy"
 git clone https://github.com/scipy/scipy.git Scipy && cd Scipy
-for SPY in 1.5.4 1.6.3 1.7.0; do
+for SPY in 1.5.4 1.6.3 1.7.1; do
   # Scipy uses submodules, and git won't clean them, so blow them up.
   git clean -xdff
   git checkout v$SPY
@@ -310,6 +321,7 @@ for SPY in 1.5.4 1.6.3 1.7.0; do
 done
 cd ..
 rm -Rf Scipy
+SPY_OLD=1.5.4   # Used as compatibility target in further recipes!
 
 
 #
@@ -332,10 +344,12 @@ rm -Rf /opt/venv*
 #
 # NCCL
 #
-export NCCL_VERSION=2.10.3
-export NCCL_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl"
+NCCL_VERSION_BUILD=2.10.3-1
+NCCL_VERSION=${NCCL_VERSION_BUILD%%-*}   # Strip build number
+NCCL_VERSION=${NCCL_VERSION%.*}          # Strip patch number
+NCCL_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl"
 git clone https://github.com/NVIDIA/nccl.git NCCL && cd NCCL
-git checkout v2.10.3-1
+git checkout v$NCCL_VERSION_BUILD
 for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
   case "$CUDA" in
     10.2 )
@@ -362,7 +376,7 @@ for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
     export LIBRARY_PATH="$TK/$CUDA/lib64"
     export LDFLAGS="-Wl,-z,now,-rpath,$TK/$CUDA/lib64"
     make -j$NJ src.build CUDA_HOME="$TK/$CUDA" NVCC_GENCODE="$NVCC_GENCODE"
-    make install PREFIX="$NCCL_PREFIX/$CUDA-v2.10"
+    make install PREFIX="$NCCL_PREFIX/$CUDA-v$NCCL_VERSION"
     make clean
   )
   git clean -xdff
@@ -404,3 +418,96 @@ for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
 done
 cd ..
 rm -Rf MAGMA
+
+
+#
+# PyTorch
+#
+PYTORCH_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/pytorch"
+git clone --recursive https://github.com/pytorch/pytorch.git PyTorch && cd PyTorch
+for PYTORCH_VERSION in 1.8.1 1.9.0; do
+  git clean -xdff
+  git checkout v${PYTORCH_VERSION}
+  git submodule sync --recursive
+  git submodule update --init --recursive
+  git submodule sync --recursive
+  git submodule update --init --recursive
+  git clean -xdff
+  for CUDA in 10.2 11.0 11.1 11.2; do
+    case "$CUDA" in
+      10.2 )     TORCH_CUDA_ARCH_LIST="3.7;5.2;7.0;7.5" ;;
+      11.0 )     TORCH_CUDA_ARCH_LIST="3.7;5.2;7.0;7.5;8.0" ;;
+      11.[^0] )  TORCH_CUDA_ARCH_LIST="3.7;5.2;7.0;7.5;8.0;8.6" ;;
+    esac
+    for PYV in 3.6 3.7 3.8; do
+      PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
+      if [ ! -e /opt/venv${PYV} ]; then
+        python${PYV} -m venv /opt/venv${PYV}
+      fi
+      (
+        . /opt/venv${PYV}/bin/activate
+        export PYTHONPATH="${SPY_PREFIX}/${SPY_OLD}-cp${PYVS}:${PYTHONPATH}"
+        export PYTHONPATH="${NPY_PREFIX}/${NPY_OLD}-cp${PYVS}:${PYTHONPATH}"
+        
+        export PYTORCH_BUILD_VERSION="${PYTORCH_VERSION}"
+        export PYTORCH_BUILD_NUMBER=0
+        export TORCH_NVCC_FLAGS="-Wno-deprecated-gpu-targets -Xfatbin -compress-all"
+        export TORCH_CUDA_ARCH_LIST
+        export BLAS=OpenBLAS             # Require OpenBLAS for linear algebra. Our OpenBLAS is built against pthreads and not OpenMP.
+        export ATEN_THREADING=TBB        # Require TBB rather than OpenMP because OpenMP forks badly.
+        export MKL_THREADING=TBB         # Require TBB rather than OpenMP because OpenMP forks badly.
+        export MKLDNN_CPU_RUNTIME=TBB    # Require TBB rather than OpenMP because OpenMP forks badly.
+        export MKLDNN_ARCH_OPT_FLAGS="-msse2"  # Require portable MKLDNN (SSE2, ddefaults to SSE4.1)
+        export DNNL_ARCH_OPT_FLAGS="-msse2"    # Require portable MKLDNN (SSE2, ddefaults to SSE4.1)
+        export USE_TBB=1                 # Require TBB
+        export USE_OPENMP=0              # Demand not to use OpenMP (due to fork-unsafeness of libgomp, the default implementation of OpenMP).
+        export USE_MKLDNN=1              # Demand to use MKLDNN
+        export USE_CUDNN=1               # Demand to use cuDNN
+        export USE_STATIC_CUDNN=0        # Want dynamic link to avoid wasting disk space / static link of cuDNN so users don't have to install themselves.
+        export USE_SYSTEM_NCCL=1         # Compile using system NCCL
+        export USE_STATIC_NCCL=0         # Want dynamic link to avoid wasting disk space / static link of NCCL so users don't have to install themselves.
+        export USE_DISTRIBUTED=1         # Want distributed backends enabled
+        export USE_MPI=1                 # Want (Open)MPI  distributed backend
+        export USE_GLOO=1                # Want Gloo       distributed backend
+        export USE_TENSORPIPE=1          # Want TensorPipe distributed backend
+        export USE_IBVERBS=1             # Want ibverbs
+        export USE_ZSTD=1                # Want Zstd
+        export USE_LMDB=1                # Want LMDB
+        export USE_TENSORRT=1            # Want TensorRT
+        export BUILD_CUSTOM_PROTOBUF=1   # Enable building custom protobuf.
+        
+        export CUDA_HOME="$TK/$CUDA"                                    # The standard way to signal the CUDA Toolkit's location.
+        export CUDNN_ROOT="$CUDNN_PREFIX/${CUDA}-v${CUDNN_VERSION}"     # Wanted by FindCUDNN.cmake
+        export NCCL_VERSION                                             # Wanted by FindNCCL.cmake, forces correct version check.
+        export NCCL_ROOT="$NCCL_PREFIX/${CUDA}-v${NCCL_VERSION}"        # Wanted by FindNCCL.cmake
+        export NCCL_LIB_DIR="${NCCL_ROOT}/lib"                          # Wanted by FindNCCL.cmake
+        export NCCL_INCLUDE_DIR="${NCCL_ROOT}/include"                  # Wanted by FindNCCL.cmake
+        export TENSORRT_ROOT="$TRT_PREFIX/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  # Wanted by cmake/public/cuda.cmake
+        export TENSORRT_INCLUDE_DIR="${TENSORRT_ROOT}/include"          # Wanted by cmake/public/cuda.cmake
+        export LMDB_DIR="$LMDB_PREFIX/$LMDB_VERSION"                    # Wanted by FindLMDB.cmake
+        export OpenBLAS_HOME="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"       # Wanted by FindOpenBLAS.cmake
+        export MAGMA_HOME="$MAGMA_PREFIX/${CUDA}-v${MAGMA_VERSION}"     # Wanted by FindMAGMA.cmake
+        export PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/bin:$PATH"           # Sufficient to discover OpenMPI
+        
+        # Propagate additional variables into CMake's invocation
+        sed -i -e "s:'MKLDNN_CPU_RUNTIME',:'MKLDNN_CPU_RUNTIME', 'MKLDNN_ARCH_OPT_FLAGS', 'DNNL_ARCH_OPT_FLAGS', 'TENSORRT_ROOT', 'SOURCE_DATE_EPOCH',:g" tools/setup_helpers/cmake.py
+        
+        # Install wheel first (becauses the requirements need it), then reqs, then build PyTorch.
+        python -m pip install wheel
+        python -m pip install -r requirements.txt
+        python setup.py bdist_wheel
+        
+        # Repair patch to tools/setup_helpers/cmake.py
+        git checkout -- tools/setup_helpers/cmake.py
+        
+        # Leave
+        deactivate
+      )
+      mkdir -p "${PYTORCH_PREFIX}/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}-cp${PYVS}"
+      unzip -d "${PYTORCH_PREFIX}/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}-cp${PYVS}" dist/torch-*.whl
+      git clean -xdff
+    done
+  done
+done
+cd ..
+rm -Rf PyTorch
