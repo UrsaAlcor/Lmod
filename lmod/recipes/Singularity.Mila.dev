@@ -291,36 +291,33 @@ NPY_OLD=1.19.5   # Used as compatibility target in further recipes!
 # We deliberately build against the oldest Numpy from above.
 #
 SPY_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/scipy"
-git clone https://github.com/scipy/scipy.git Scipy && cd Scipy
+git clone https://github.com/scipy/scipy.git Scipy
 for SPY in 1.5.4 1.6.3 1.7.1; do
-  # Scipy uses submodules, and git won't clean them, so blow them up.
-  git clean -xdff
-  git checkout v$SPY
-  git clean -xdff
-  git submodule sync
-  git submodule update --init
   if [ "$SPY" = 1.5.4 ]; then PYV_LIST="3.6 3.7 3.8"
   else                        PYV_LIST="    3.7 3.8"
   fi
   for PYV in $PYV_LIST; do
     PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
-    if [ ! -e /opt/venv${PYV} ]; then
-      python${PYV} -m venv /opt/venv${PYV}
-    fi
+    cp -a Scipy "Scipy-${SPY}-cp${PYVS}"
+    cd          "Scipy-${SPY}-cp${PYVS}"
+    python${PYV} -m venv venv
+    git checkout v$SPY
+    git submodule sync
+    git submodule update --init
     (
-      . /opt/venv${PYV}/bin/activate
+      . venv/bin/activate
       export PYTHONPATH="${NPY_PREFIX}/${NPY_OLD}-cp${PYVS}:${PYTHONPATH}"
       python -m pip install wheel Cython pythran pybind11
       python setup.py bdist_wheel
       deactivate
-    )
-    mkdir -p "${SPY_PREFIX}/${SPY}-cp${PYVS}"
-    unzip -d "${SPY_PREFIX}/${SPY}-cp${PYVS}" dist/scipy-*.whl
-    git clean -xdff
+      mkdir -p "${SPY_PREFIX}/${SPY}-cp${PYVS}"
+      unzip -d "${SPY_PREFIX}/${SPY}-cp${PYVS}" dist/scipy-*.whl
+    ) &
+    cd ..
   done
 done
-cd ..
-rm -Rf Scipy
+wait
+rm -Rf Scipy Scipy-*
 SPY_OLD=1.5.4   # Used as compatibility target in further recipes!
 
 
