@@ -255,31 +255,30 @@ export OPENBLAS="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"
 export NPY_BLAS_ORDER="OpenBLAS"
 export NPY_LAPACK_ORDER="OpenBLAS"
 export NPY_NUM_BUILD_JOBS=$NJ
-git clone https://github.com/numpy/numpy.git Numpy && cd Numpy
+git clone https://github.com/numpy/numpy.git Numpy
 for NPY in 1.19.5 1.20.3 1.21.1; do
-  git clean -xdff
-  git checkout v$NPY
   if [ "$NPY" = 1.19.5 ]; then PYV_LIST="3.6 3.7 3.8" CPU_BASELINE=''
   else                         PYV_LIST="    3.7 3.8" CPU_BASELINE='--cpu-baseline=sse sse2'
   fi
   for PYV in $PYV_LIST; do
     PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
-    if [ ! -e /opt/venv${PYV} ]; then
-      python${PYV} -m venv /opt/venv${PYV}
-    fi
+    cp -a Numpy "Numpy-${SPY}-cp${PYVS}"
+    cd          "Numpy-${SPY}-cp${PYVS}"
+    python${PYV} -m venv venv
+    git checkout v$NPY
     (
-      . /opt/venv${PYV}/bin/activate
+      . venv/bin/activate
       python -m pip install wheel Cython
       python setup.py build ${CPU_BASELINE:+"$CPU_BASELINE"} bdist_wheel
       deactivate
-    )
-    mkdir -p "${NPY_PREFIX}/${NPY}-cp${PYVS}"
-    unzip -d "${NPY_PREFIX}/${NPY}-cp${PYVS}" dist/numpy-*.whl
-    git clean -xdff
+      mkdir -p "${NPY_PREFIX}/${NPY}-cp${PYVS}"
+      unzip -d "${NPY_PREFIX}/${NPY}-cp${PYVS}" dist/numpy-*.whl
+    ) &
+    cd ..
   done
 done
-cd ..
-rm -Rf Numpy
+wait
+rm -Rf Numpy Numpy-*
 NPY_OLD=1.19.5   # Used as compatibility target in further recipes!
 
 
