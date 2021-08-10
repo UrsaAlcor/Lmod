@@ -83,12 +83,13 @@ mkdir -p "$TK/11.1"
 mkdir -p "$TK/11.2"
 mkdir -p "$TK/11.3"
 mkdir -p "$TK/11.4"
-sh cuda_10.2.89_*.run --silent --override --no-man-page --toolkit --toolkitpath="$TK/10.2"
-sh cuda_11.0.3_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.0"
-sh cuda_11.1.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.1"
-sh cuda_11.2.2_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.2"
-sh cuda_11.3.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.3"
-sh cuda_11.4.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.4"
+sh cuda_10.2.89_*.run --silent --override --no-man-page --toolkit --toolkitpath="$TK/10.2" &
+sh cuda_11.0.3_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.0" &
+sh cuda_11.1.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.1" &
+sh cuda_11.2.2_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.2" &
+sh cuda_11.3.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.3" &
+sh cuda_11.4.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.4" &
+wait
 rm cuda_*
 
 # cuDNN
@@ -100,8 +101,9 @@ mkdir -p "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}"
 mkdir -p "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}"
 ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.0-v${CUDNN_VERSION}"
 ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.1-v${CUDNN_VERSION}"
-tar --strip-components=1 -xf cudnn-10.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}"
-tar --strip-components=1 -xf cudnn-11.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}"
+tar --strip-components=1 -xf cudnn-10.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}" &
+tar --strip-components=1 -xf cudnn-11.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}" &
+wait
 rm cudnn-*
 
 # TensorRT
@@ -113,9 +115,10 @@ mkdir -p "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
 mkdir -p "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
 mkdir -p "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
 ln    -s      "cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  "$TRT_PREFIX/cuda11.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
-tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
-tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
-tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
+tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
+tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
+wait
 rm TensorRT-*
 
 
