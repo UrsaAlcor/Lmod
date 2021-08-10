@@ -424,7 +424,7 @@ rm -Rf MAGMA
 #
 PYTORCH_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/pytorch"
 git clone --recursive https://github.com/pytorch/pytorch.git PyTorch
-for PYTORCH_VERSION in 1.8.1 1.9.0; do
+for PYTORCH_VERSION in 1.9.0 1.8.1; do
   cd PyTorch
   git clean -xdff
   git checkout v${PYTORCH_VERSION}
@@ -487,8 +487,10 @@ for PYTORCH_VERSION in 1.8.1 1.9.0; do
         export TENSORRT_ROOT="$TRT_PREFIX/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  # Wanted by cmake/public/cuda.cmake
         export TENSORRT_INCLUDE_DIR="${TENSORRT_ROOT}/include"          # Wanted by cmake/public/cuda.cmake
         export LMDB_DIR="$LMDB_PREFIX/$LMDB_VERSION"                    # Wanted by FindLMDB.cmake
-        export OpenBLAS_HOME="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"       # Wanted by FindOpenBLAS.cmake
         export MAGMA_HOME="$MAGMA_PREFIX/${CUDA}-v${MAGMA_VERSION}"     # Wanted by FindMAGMA.cmake
+        export OpenBLAS_HOME="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"       # Wanted by FindOpenBLAS.cmake (PyTorch 1.8.x)
+        export LIBRARY_PATH="$OPENBLAS_PREFIX/$OPENBLAS_VERSION/lib"    # Wanted by FindBLAS.cmake     (PyTorch 1.9.x)
+        export CPATH="$OPENBLAS_PREFIX/$OPENBLAS_VERSION/include"       # Wanted by FindBLAS.cmake     (PyTorch 1.9.x)
         export PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/bin:$PATH"           # Sufficient to discover OpenMPI
         
         # Propagate additional variables into CMake's invocation
