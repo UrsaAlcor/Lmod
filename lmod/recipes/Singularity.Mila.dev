@@ -89,7 +89,7 @@ sh cuda_11.1.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath=
 sh cuda_11.2.2_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.2" &
 sh cuda_11.3.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.3" &
 sh cuda_11.4.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.4" &
-wait
+wait       # Don't erase the installers before they ran!
 rm cuda_*
 
 # cuDNN
@@ -103,7 +103,7 @@ ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.0-v${CUDNN_VERSION}"
 ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.1-v${CUDNN_VERSION}"
 tar --strip-components=1 -xf cudnn-10.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}" &
 tar --strip-components=1 -xf cudnn-11.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}" &
-wait
+wait       # Don't erase the installers before they ran!
 rm cudnn-*
 
 # TensorRT
@@ -118,7 +118,7 @@ ln    -s      "cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  "$TRT_PREFIX/cud
 tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
 tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
 tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
-wait
+wait       # Don't erase the installers before they ran!
 rm TensorRT-*
 
 
@@ -423,8 +423,9 @@ rm -Rf MAGMA
 # PyTorch
 #
 PYTORCH_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/pytorch"
-git clone --recursive https://github.com/pytorch/pytorch.git PyTorch && cd PyTorch
+git clone --recursive https://github.com/pytorch/pytorch.git PyTorch
 for PYTORCH_VERSION in 1.8.1 1.9.0; do
+  cd PyTorch
   git clean -xdff
   git checkout v${PYTORCH_VERSION}
   git submodule sync --recursive
@@ -432,6 +433,7 @@ for PYTORCH_VERSION in 1.8.1 1.9.0; do
   git submodule sync --recursive
   git submodule update --init --recursive
   git clean -xdff
+  cd ..
   for CUDA in 10.2 11.0 11.1 11.2; do
     case "$CUDA" in
       10.2 )     TORCH_CUDA_ARCH_LIST="3.7;5.2;7.0;7.5" ;;
@@ -440,11 +442,12 @@ for PYTORCH_VERSION in 1.8.1 1.9.0; do
     esac
     for PYV in 3.6 3.7 3.8; do
       PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
-      if [ ! -e /opt/venv${PYV} ]; then
-        python${PYV} -m venv /opt/venv${PYV}
-      fi
+      cp -a PyTorch "PyTorch-${PYVS}"
       (
-        . /opt/venv${PYV}/bin/activate
+        cd          "PyTorch-${PYVS}"
+        python${PYV} -m venv venv
+        . venv/bin/activate
+        
         export PYTHONPATH="${SPY_PREFIX}/${SPY_OLD}-cp${PYVS}:${PYTHONPATH}"
         export PYTHONPATH="${NPY_PREFIX}/${NPY_OLD}-cp${PYVS}:${PYTHONPATH}"
         
@@ -499,13 +502,17 @@ for PYTORCH_VERSION in 1.8.1 1.9.0; do
         # Repair patch to tools/setup_helpers/cmake.py
         git checkout -- tools/setup_helpers/cmake.py
         
+        # Expand the wheel into the destination.
+        mkdir -p "${PYTORCH_PREFIX}/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}-cp${PYVS}"
+        unzip -d "${PYTORCH_PREFIX}/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}-cp${PYVS}" dist/torch-*.whl
+        
         # Leave
         deactivate
-      )
-      mkdir -p "${PYTORCH_PREFIX}/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}-cp${PYVS}"
-      unzip -d "${PYTORCH_PREFIX}/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}-cp${PYVS}" dist/torch-*.whl
-      git clean -xdff
+        cd ..
+        rm -Rf "PyTorch-${PYVS}"
+      ) &
     done
+    wait
   done
 done
 cd ..
