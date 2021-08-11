@@ -231,12 +231,14 @@ rm -Rf py-lmdb
 #     AVX2+FMA: Haswell      (x86-64-v3)
 #     AVX512:   Skylake-X    (x86-64-v4)
 #     AMD AVX2: Zen2         (x86-64-v3, ~Haswell)
+# We configure with BIGNUMA=1 because we're already at the 256-core limit with
+# the biggest machines.
 #
 OPENBLAS_VERSION=0.3.17
 OPENBLAS_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/openblas"
 git clone 'https://github.com/xianyi/OpenBLAS.git' && cd OpenBLAS
 git checkout v${OPENBLAS_VERSION}
-make -j$NJ   USE_THREAD=1 USE_OPENMP=0 NUM_THREADS=256 BUILD_BFLOAT16=1 TARGET=GENERIC \
+make -j$NJ   USE_THREAD=1 USE_OPENMP=0 BIGNUMA=1 NUM_THREADS=256 BUILD_BFLOAT16=1 TARGET=GENERIC \
              DYNAMIC_ARCH=1 DYNAMIC_LIST="PRESCOTT NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN"
 make install PREFIX="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"
 rmdir "$OPENBLAS_PREFIX/$OPENBLAS_VERSION/bin" || true  # Usually empty.
@@ -268,8 +270,8 @@ for NPY in 1.19.5 1.20.3 1.21.1; do
   fi
   for PYV in $PYV_LIST; do
     PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
-    cp -a Numpy "Numpy-${SPY}-cp${PYVS}"
-    cd          "Numpy-${SPY}-cp${PYVS}"
+    cp -a Numpy "Numpy-${NPY}-cp${PYVS}"
+    cd          "Numpy-${NPY}-cp${PYVS}"
     python${PYV} -m venv venv
     git checkout v$NPY
     (
