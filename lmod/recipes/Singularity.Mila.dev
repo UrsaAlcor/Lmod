@@ -488,8 +488,17 @@ for PYTORCH_VERSION in 1.9.0 1.8.1; do
         export TENSORRT_INCLUDE_DIR="${TENSORRT_ROOT}/include"          # Wanted by cmake/public/cuda.cmake
         export LMDB_DIR="$LMDB_PREFIX/$LMDB_VERSION"                    # Wanted by FindLMDB.cmake
         export MAGMA_HOME="$MAGMA_PREFIX/${CUDA}-v${MAGMA_VERSION}"     # Wanted by FindMAGMA.cmake
+        # A small difficulty appears with PyTorch 1.9.0 re: OpenBLAS. PyTorch 1.9.0 performs
+        # detection for BLAS twice, using different logic, and one path reuses $OpenBLAS_HOME
+        # while the other uses a different strategy that involves looking at hardcoded paths,
+        # $CPATH, $LIBRARY_PATH *and* $LD_LIBRARY_PATH, even though the latter variable
+        # normally serves a different purpose. But we are obliged to use this later variable
+        # because otherwise an -L flag is not supplied to the linker, and so our linker hack
+        # to inject -rpath is not activated. So we therefore indicate the location of OpenBLAS
+        # through all of $OpenBLAS_HOME, $CPATH and $LD_LIBRARY_PATH but *not* $LIBRARY_PATH,
+        # however strange. This does not appear to hurt PyTorch 1.8.x.
         export OpenBLAS_HOME="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"       # Wanted by FindOpenBLAS.cmake (PyTorch 1.8.x)
-        export LIBRARY_PATH="$OPENBLAS_PREFIX/$OPENBLAS_VERSION/lib"    # Wanted by FindBLAS.cmake     (PyTorch 1.9.x)
+        export LD_LIBRARY_PATH="$OPENBLAS_PREFIX/$OPENBLAS_VERSION/lib:$LD_LIBRARY_PATH" # Wanted by FindBLAS.cmake     (PyTorch 1.9.x). We must not use LIBRARY_PATH in order to leverage the linker hack.
         export CPATH="$OPENBLAS_PREFIX/$OPENBLAS_VERSION/include"       # Wanted by FindBLAS.cmake     (PyTorch 1.9.x)
         export PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/bin:$PATH"           # Sufficient to discover OpenMPI
         
@@ -517,5 +526,4 @@ for PYTORCH_VERSION in 1.9.0 1.8.1; do
     wait
   done
 done
-cd ..
 rm -Rf PyTorch
