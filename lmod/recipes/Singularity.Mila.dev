@@ -392,8 +392,8 @@ rm -Rf NCCL
 #
 # MAGMA
 #
-export MAGMA_VERSION=2.6.1
-export MAGMA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/magma"
+MAGMA_VERSION=2.6.1
+MAGMA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/magma"
 git clone https://bitbucket.org/icl/magma.git MAGMA && cd MAGMA
 git checkout v${MAGMA_VERSION}
 for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
