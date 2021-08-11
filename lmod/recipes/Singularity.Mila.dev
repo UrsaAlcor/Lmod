@@ -114,11 +114,14 @@ TRT_PREFIX=/cvmfs/ai.mila.quebec/apps/x86_64/common/tensorrt
 mkdir -p "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
 mkdir -p "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
 mkdir -p "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
-ln    -s      "cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  "$TRT_PREFIX/cuda11.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+ln    -s "cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  "$TRT_PREFIX/cuda11.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
 tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
 tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
 tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
 wait       # Don't erase the installers before they ran!
+ln    -s "$TK/10.2/lib64/libnvrtc.so.10.2" "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.10.2"  # Required because libnvinfer.so.7 depends on libnvrtc.so.10.2
+ln    -s "$TK/11.0/lib64/libnvrtc.so.11.0" "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.11.0"  # Required because libnvinfer.so.7 depends on libnvrtc.so.11.0
+ln    -s "$TK/11.1/lib64/libnvrtc.so.11.1" "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.11.1"  # Required because libnvinfer.so.7 depends on libnvrtc.so.11.1
 rm TensorRT-*
 
 
