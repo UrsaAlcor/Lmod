@@ -1,12 +1,15 @@
 #!/cvmfs/config.mila.quebec/lmod/lua/lua5.4
-unistd   = require 'posix.unistd'
-lfs      = require 'lfs'
-xarg     = {}
-rpaths   = {}
-libpaths = {}
-libs     = {}
-static   = false
-i        = 1
+unistd = require 'posix.unistd'
+lfs    = require 'lfs'
+xarg           = {}
+explicitrpaths = {}
+rpaths         = {}
+libpaths       = {}
+libs           = {}
+static         = false
+output         = nil
+soname         = nil
+i              = 1
 
 
 --[[
@@ -26,15 +29,17 @@ rpath injection may be required.
 --]]
 while arg[i] do
   if     arg[i]          == '-L' then
-    table.insert(libpaths, (arg[i+1]:gsub('/+','/')));
     i=i+1
+    if arg[i] then
+      table.insert(libpaths, (arg[i]:gsub('/+','/')));
+    end
   elseif arg[i]:sub(1,3) == '-L/' then
     table.insert(libpaths, (arg[i]:sub(3):gsub('/+','/')))
   elseif arg[i]          == '-l' then
-    if not static then
-      table.insert(libs, arg[i+1])
-    end
     i=i+1
+    if not static and arg[i] then
+      table.insert(libs, arg[i])
+    end
   elseif arg[i]:sub(1,2) == '-l' then
     if not static then
       table.insert(libs, arg[i]:sub(3))
@@ -45,6 +50,25 @@ while arg[i] do
     static=false
   elseif arg[i] == '-dynamic-linker' then
     i=i+1 -- Ignore the dynamic linker
+  elseif arg[i] == '-rpath' then
+    i=i+1 -- Explicit rpath, record for deduplication
+    if arg[i] then
+      local v = arg[i]
+      v = v:gsub('/+','/')
+      v = v:gsub('%f[\0/]/+$','')
+      explicitrpaths[v] = true
+    end
+  elseif arg[i] == '-o' then
+    i=i+1
+    output = arg[i]
+  elseif arg[i] == '--output' then
+    i=i+1
+    output = arg[i]
+  elseif arg[i]:sub(1,9) == '--output=' then
+    output = arg[i]:sub(10)
+  elseif arg[i] == '-soname' then
+    i=i+1
+    soname = arg[i]
   elseif arg[i]:match('[^/]+%.so[^/]*$') then
     bn = arg[i]:match('[^/]+%.so[^/]*$')
     if arg[i] ~= bn then  -- Not just a raw library name
@@ -87,21 +111,36 @@ end
 --[[
 Filter the list for whitelisted paths, create the additional -rpath flags
 required, and exec the real linker.
+
+There are a few blacklisted paths, mostly pointing to NVIDIA "stubs".
+Obviously, these should *never* be used at runtime, so adding them as
+-rpath is severely counter-productive.
+
+We normalize paths and check against user-given explicit rpaths to avoid
+pointless duplicates.
 --]]
 for k,v in pairs(foundlist) do
-  if v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lz4/') or
-     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lzma/') or
-     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/zstd/') or
-     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lmdb/') or
-     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cuda/') or
-     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cudnn/') or
-     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl/') or
-     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/magma/') or
-     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/oneapi/') or
-     v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/openblas/') or
-     LD_LUA_EXTRA:match('%f[^:\0]'..v) then
-    table.insert(xarg, '-rpath')
-    table.insert(xarg, v)
+  v = v:gsub('/+','/')
+  v = v:gsub('%f[\0/]/+$','')
+  if not explicitrpaths[v] then
+    if v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lz4/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lzma/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/zstd/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lmdb/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cuda/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cudnn/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/magma/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/oneapi/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/openblas/') or
+       LD_LUA_EXTRA:match('%f[^:\0]'..v) then
+      if not v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cuda/.+/stubs/*$') and
+         not v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/tensorrt/.+/stubs/*$') then
+        table.insert(xarg, '-rpath')
+        table.insert(xarg, v)
+        explicitrpaths[v] = true
+      end
+    end
   end
 end
 arg = table.move(xarg, 1, #xarg, #arg+1, arg)
