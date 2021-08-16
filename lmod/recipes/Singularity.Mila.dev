@@ -427,9 +427,9 @@ rm -Rf MAGMA
 #
 # PyTorch
 #
-PYTORCH_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/pytorch"
+PYTORCH_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/debian/pytorch"
 git clone --recursive https://github.com/pytorch/pytorch.git PyTorch
-for PYTORCH_VERSION in 1.9.0 1.8.1; do
+for PYTORCH_VERSION in 1.8.2 1.9.0; do
   cd PyTorch
   git clean -xdff
   git checkout v${PYTORCH_VERSION}
@@ -470,9 +470,9 @@ for PYTORCH_VERSION in 1.9.0 1.8.1; do
         export USE_OPENMP=0              # Demand not to use OpenMP (due to fork-unsafeness of libgomp, the default implementation of OpenMP).
         export USE_MKLDNN=1              # Demand to use MKLDNN
         export USE_CUDNN=1               # Demand to use cuDNN
-        export USE_STATIC_CUDNN=0        # Want dynamic link to avoid wasting disk space / static link of cuDNN so users don't have to install themselves.
+        export USE_STATIC_CUDNN=0        # Want dynamic link to avoid wasting disk space
         export USE_SYSTEM_NCCL=1         # Compile using system NCCL
-        export USE_STATIC_NCCL=0         # Want dynamic link to avoid wasting disk space / static link of NCCL so users don't have to install themselves.
+        export USE_STATIC_NCCL=0         # Want dynamic link to avoid wasting disk space
         export USE_DISTRIBUTED=1         # Want distributed backends enabled
         export USE_MPI=1                 # Want (Open)MPI  distributed backend
         export USE_GLOO=1                # Want Gloo       distributed backend
@@ -519,8 +519,8 @@ for PYTORCH_VERSION in 1.9.0 1.8.1; do
         git checkout -- tools/setup_helpers/cmake.py
         
         # Expand the wheel into the destination.
-        mkdir -p "${PYTORCH_PREFIX}/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}-cp${PYVS}"
-        unzip -d "${PYTORCH_PREFIX}/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}-cp${PYVS}" dist/torch-*.whl
+        mkdir -p "${PYTORCH_PREFIX}/python${PYV}-cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}"
+        unzip -d "${PYTORCH_PREFIX}/python${PYV}-cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}" dist/torch-*.whl
         
         # Leave
         deactivate
