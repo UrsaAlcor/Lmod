@@ -127,6 +127,7 @@ for k,v in pairs(foundlist) do
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lzma/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/zstd/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lmdb/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/fftw/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cuda/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cudnn/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl/') or
@@ -144,4 +145,28 @@ for k,v in pairs(foundlist) do
   end
 end
 arg = table.move(xarg, 1, #xarg, #arg+1, arg)
+
+
+--[[
+Finishing hack: The libfftw3f?_*.so.* libraries (but not libfftw3f?.so.* itself)
+bake into themselves an absolute path to their install location, to find
+libfftw3.so.*. Punch out and replace such paths with $ORIGIN, making them
+relocatable.
+--]]
+if soname and soname:match('^libfftw3f?_.+%.so%.%d+$') then
+  i=1
+  while arg[i] do
+    if arg[i] == '-rpath' and
+       arg[i+1]           and
+       arg[i+1]:match('^/cvmfs/ai.mila.quebec/.+/fftw/+[^/]+/+lib') then
+      arg[i+1] = '$ORIGIN'
+      i = i+2
+    else
+      i = i+1
+    end
+  end
+end
+
+
+-- Execute linker.
 unistd.execp(LD_LUA_BACKEND, arg)

@@ -56,7 +56,7 @@ cd /opt
 #
 git config --global advice.detachedHead false
 NJ=${NJ:-128}
-export SOURCE_DATE_EPOCH=1628563769
+export SOURCE_DATE_EPOCH=1629769335
 
 
 # OFED
@@ -326,6 +326,60 @@ done
 wait
 rm -Rf Scipy Scipy-*
 SPY_OLD=1.5.4   # Used as compatibility target in further recipes!
+
+
+#
+# FFTW
+#
+# The build is done twice - in double precision (--disable-single) and
+# single precision (--enable-single). FFTW installs itself with different
+# names in both modes, but uses the same header.
+#
+# In both cases, both static (--enable-static) and shared (--enable-shared)
+# libraries are built and installed.
+#
+# The OpenMP build is disabled because libgomp (the standard OpenMP runtime
+# shipping with GCC), once initialized, interacts very badly with fork(), a
+# common operation in Python to spawn worker processes.
+#
+# AVX-512 is considered experimental. We disable the optimization for now,
+# even though it might be of great benefit on Intel Skylake-X with AVX-512,
+# but this should be reconsidered as soon as FFTW's authors deem it stable.
+#
+# We disable KCVI (Knights Corner Vector Instructions) because Intel KC
+# hardware is obsolete.
+#
+FFTW_VERSION=3.3.9
+FFTW_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/fftw"
+wget "https://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz"
+tar -xf fftw-${FFTW_VERSION}.tar.gz && cd fftw-${FFTW_VERSION}
+for ENABLE_PRECISION in --disable-single --enable-single; do
+  (
+    export OMPI_ALLOW_RUN_AS_ROOT=1           # make check runs tests with mpirun.
+    export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1   # make check runs tests with mpirun.
+    export PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/bin:$PATH"
+    ./configure --enable-static      \
+                --enable-shared      \
+                --disable-openmp     \
+                --enable-threads     \
+                --enable-mpi         \
+                --enable-sse2        \
+                --enable-avx         \
+                --enable-avx2        \
+                --enable-fma         \
+                --enable-avx-128-fma \
+                --disable-avx512     \
+                --disable-kcvi       \
+                ${ENABLE_PRECISION}  \
+                --prefix="$FFTW_PREFIX/$FFTW_VERSION"
+    make -j$NJ
+    make check          # FFTW has been known to break with some compilers. Best to be safe.
+    make install
+    make distclean
+  )
+done
+cd  ..
+rm  -Rf fftw-${FFTW_VERSION}.tar.gz fftw-${FFTW_VERSION}
 
 
 #
