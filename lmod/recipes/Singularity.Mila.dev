@@ -251,7 +251,7 @@ rm -Rf OpenBLAS
 # We link against OpenBLAS, and build for the following combinations:
 #   - v1.19.5: py3.6+
 #   - v1.20.3: py3.7+
-#   - v1.21.1: py3.7+
+#   - v1.21.2: py3.7+
 # Numpy's setup.py seems to ignore CPATH and LIBRARY_PATH; It seems to only
 # care about
 #   - OPENBLAS (for OpenBLAS) or
@@ -264,7 +264,7 @@ export NPY_BLAS_ORDER="OpenBLAS"
 export NPY_LAPACK_ORDER="OpenBLAS"
 export NPY_NUM_BUILD_JOBS=$NJ
 git clone https://github.com/numpy/numpy.git Numpy
-for NPY in 1.19.5 1.20.3 1.21.1; do
+for NPY in 1.19.5 1.20.3 1.21.2; do
   if [ "$NPY" = 1.19.5 ]; then PYV_LIST="3.6 3.7 3.8" CPU_BASELINE=''
   else                         PYV_LIST="    3.7 3.8" CPU_BASELINE='--cpu-baseline=sse sse2'
   fi
