@@ -43,7 +43,7 @@ apt-get install -y python3.6 python3.6-dev python3.6-venv \
                    python3.7 python3.7-dev python3.7-venv \
                    python3.8 python3.8-dev python3.8-venv \
                    python3-setuptools gfortran \
-                   build-essential cmake yasm nasm \
+                   build-essential ccache cmake yasm nasm \
                    zip unzip patchelf wget git graphviz \
                    libnuma-dev
 cd /opt
@@ -53,83 +53,104 @@ cd /opt
 # - Multi-core control.
 # - Increase reproducibility by exporting SOURCE_DATE_EPOCH variable with
 #   approximately current timestamp.
+# - Remove limits on compiler caching
 #
 git config --global advice.detachedHead false
 NJ=${NJ:-128}
 export SOURCE_DATE_EPOCH=1629769335
+ccache -M 0   # Set unlimited size  of compiler cache
+ccache -F 0   # Set unlimited files in compiler cache
+ccache -z     # Zero  statistics    of compiler cache
+ccache -s     # Print statistics    of compiler cache
 
 
 # OFED
 OFED=MLNX_OFED_LINUX-5.2-2.2.0.0-ubuntu18.04-x86_64
-tar -xf "$OFED".tgz
-cd      "$OFED"
-./mlnxofedinstall --force --user-space-only --without-fw-update
-cd      ..
-rm -Rf  "$OFED" "$OFED".tgz
-rm -Rf  mellanox neohost  # Installer left-over junk.
+if [ -f "$OFED".tgz ]; then
+  tar -xf "$OFED".tgz
+  cd      "$OFED"
+  ./mlnxofedinstall --force --user-space-only --without-fw-update
+  cd      ..
+  rm -Rf mellanox neohost "$OFED" "$OFED".tgz # Installer left-over junk.
+fi
 
 # MKL
-bash l_BaseKit_p_2021.3.0.3219_offline.sh -a -s --eula accept \
-      --install-dir="/cvmfs/ai.mila.quebec/apps/x86_64/common/oneapi/2021.3.0.3219" \
-      --components 'intel.oneapi.lin.mkl.devel:intel.oneapi.lin.dnnl:intel.oneapi.lin.dal.devel:intel.oneapi.lin.dpcpp-cpp-compiler:intel.oneapi.lin.dpcpp_dbg:intel.oneapi.lin.ipp.devel:intel.oneapi.lin.ippcp.devel:intel.oneapi.lin.vpl:intel.oneapi.lin.dpl:intel.oneapi.lin.vtune'
-rm   l_BaseKit_p_2021.3.0.3219_offline.sh
-rm -Rf intel  # Installer left-over junk.
+if [ -f l_BaseKit_p_2021.3.0.3219_offline.sh ]; then
+  bash  l_BaseKit_p_2021.3.0.3219_offline.sh -a -s --eula accept \
+        --install-dir="/cvmfs/ai.mila.quebec/apps/x86_64/common/oneapi/2021.3.0.3219" \
+        --components 'intel.oneapi.lin.mkl.devel:intel.oneapi.lin.dnnl:intel.oneapi.lin.dal.devel:intel.oneapi.lin.dpcpp-cpp-compiler:intel.oneapi.lin.dpcpp_dbg:intel.oneapi.lin.ipp.devel:intel.oneapi.lin.ippcp.devel:intel.oneapi.lin.vpl:intel.oneapi.lin.dpl:intel.oneapi.lin.vtune'
+  rm -Rf intel l_BaseKit_p_2021.3.0.3219_offline.sh # Installer left-over junk.
+fi
 
 # CUDA
 TK=/cvmfs/ai.mila.quebec/apps/x86_64/common/cuda
-mkdir -p "$TK/10.2"
-mkdir -p "$TK/11.0"
-mkdir -p "$TK/11.1"
-mkdir -p "$TK/11.2"
-mkdir -p "$TK/11.3"
-mkdir -p "$TK/11.4"
-sh cuda_10.2.89_*.run --silent --override --no-man-page --toolkit --toolkitpath="$TK/10.2" &
-sh cuda_11.0.3_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.0" &
-sh cuda_11.1.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.1" &
-sh cuda_11.2.2_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.2" &
-sh cuda_11.3.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.3" &
-sh cuda_11.4.1_*.run  --silent --override --no-man-page --toolkit --toolkitpath="$TK/11.4" &
-wait       # Don't erase the installers before they ran!
-rm cuda_*
+for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
+  if [ -f cuda_${CUDA}.*.run ]; then
+    (
+      rm -Rf   "$TK/$CUDA"
+      mkdir -p "$TK/$CUDA"
+      sh cuda_${CUDA}.*.run --silent --override --no-man-page --toolkit --toolkitpath="$TK/$CUDA"
+      rm cuda_${CUDA}.*.run
+    ) &
+  fi
+done
+wait
 
 # cuDNN
 CUDNN_VERSION_FULL=8.1.1.33
 CUDNN_VERSION=${CUDNN_VERSION_FULL%.*}  # Strip sub-patch number
 CUDNN_VERSION=${CUDNN_VERSION%.*}       # Strip patch number
 CUDNN_PREFIX=/cvmfs/ai.mila.quebec/apps/x86_64/common/cudnn
-mkdir -p "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}"
-mkdir -p "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}"
-ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.0-v${CUDNN_VERSION}"
-ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.1-v${CUDNN_VERSION}"
-tar --strip-components=1 -xf cudnn-10.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}" &
-tar --strip-components=1 -xf cudnn-11.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}" &
-wait       # Don't erase the installers before they ran!
-rm cudnn-*
+if [ -f cudnn-10.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -a \
+     -f cudnn-11.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz ]; then
+  rm -Rf   "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}"
+  rm -Rf   "$CUDNN_PREFIX/11.0-v${CUDNN_VERSION}"
+  rm -Rf   "$CUDNN_PREFIX/11.1-v${CUDNN_VERSION}"
+  rm -Rf   "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}"
+  mkdir -p "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}"
+  mkdir -p "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}"
+  ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.0-v${CUDNN_VERSION}"
+  ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.1-v${CUDNN_VERSION}"
+  tar --strip-components=1 -xf cudnn-10.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}" &
+  tar --strip-components=1 -xf cudnn-11.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}" &
+  wait       # Don't erase the installers before they ran!
+  rm cudnn-*
+fi
 
 # TensorRT
 TRT_VERSION_FULL=7.2.3.4
 TRT_VERSION=${TRT_VERSION_FULL%.*}  # Strip sub-patch number
 TRT_VERSION=${TRT_VERSION%.*}       # Strip patch number
 TRT_PREFIX=/cvmfs/ai.mila.quebec/apps/x86_64/common/tensorrt
-mkdir -p "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
-mkdir -p "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
-mkdir -p "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
-ln    -s "cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  "$TRT_PREFIX/cuda11.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
-tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
-tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
-tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
-wait       # Don't erase the installers before they ran!
-ln    -s "$TK/10.2/lib64/libnvrtc.so.10.2" "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.10.2"  # Required because libnvinfer.so.7 depends on libnvrtc.so.10.2
-ln    -s "$TK/11.0/lib64/libnvrtc.so.11.0" "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.11.0"  # Required because libnvinfer.so.7 depends on libnvrtc.so.11.0
-ln    -s "$TK/11.1/lib64/libnvrtc.so.11.1" "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.11.1"  # Required because libnvinfer.so.7 depends on libnvrtc.so.11.1
-rm TensorRT-*
+if [ -f TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CUDNN_VERSION}.tar.gz -a \
+     -f TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn${CUDNN_VERSION}.tar.gz -a \
+     -f TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn${CUDNN_VERSION}.tar.gz ]; then
+  rm -Rf   "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+  rm -Rf   "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+  rm -Rf   "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+  rm -Rf   "$TRT_PREFIX/cuda11.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+  mkdir -p "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+  mkdir -p "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+  mkdir -p "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+  ln    -s "cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  "$TRT_PREFIX/cuda11.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
+  tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
+  tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
+  tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
+  wait       # Don't erase the installers before they ran!
+  ln    -s "$TK/10.2/lib64/libnvrtc.so.10.2" "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.10.2"  # Required because libnvinfer.so.7 depends on libnvrtc.so.10.2
+  ln    -s "$TK/11.0/lib64/libnvrtc.so.11.0" "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.11.0"  # Required because libnvinfer.so.7 depends on libnvrtc.so.11.0
+  ln    -s "$TK/11.1/lib64/libnvrtc.so.11.1" "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.11.1"  # Required because libnvinfer.so.7 depends on libnvrtc.so.11.1
+  rm TensorRT-*
+fi
 
 
 #
 # LINKER HACK!
 #
-mv /usr/bin/x86_64-linux-gnu-ld     /usr/bin/x86_64-linux-gnu-ld.orig
-mv /usr/bin/x86_64-linux-gnu-ld.lua /usr/bin/x86_64-linux-gnu-ld
+if [ -f /usr/bin/x86_64-linux-gnu-ld.lua ]; then
+  mv /usr/bin/x86_64-linux-gnu-ld     /usr/bin/x86_64-linux-gnu-ld.orig
+  mv /usr/bin/x86_64-linux-gnu-ld.lua /usr/bin/x86_64-linux-gnu-ld
+fi
 
 
 #
@@ -137,12 +158,15 @@ mv /usr/bin/x86_64-linux-gnu-ld.lua /usr/bin/x86_64-linux-gnu-ld
 #
 LZ4_VERSION=1.9.3
 LZ4_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lz4"
-git clone 'https://github.com/lz4/lz4.git' && cd lz4
-git checkout v$LZ4_VERSION
-make install -j$NJ MOREFLAGS="-mtune=haswell -Wl,-z,now" \
-                   PREFIX="$LZ4_PREFIX/$LZ4_VERSION"
-cd ..
-rm -Rf lz4
+if [ ! -d "$LZ4_PREFIX/$LZ4_VERSION" ]; then
+  rm -Rf lz4
+  git clone 'https://github.com/lz4/lz4.git' && cd lz4
+  git checkout v$LZ4_VERSION
+  make install -j$NJ MOREFLAGS="-mtune=haswell -Wl,-z,now" \
+                     PREFIX="$LZ4_PREFIX/$LZ4_VERSION"
+  cd ..
+  rm -Rf lz4
+fi
 
 
 #
@@ -150,12 +174,15 @@ rm -Rf lz4
 #
 LZMA_VERSION=5.2.5
 LZMA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lzma"
-wget "https://tukaani.org/xz/xz-${LZMA_VERSION}.tar.gz"
-tar -xf xz-${LZMA_VERSION}.tar.gz && cd xz-${LZMA_VERSION}
-./configure --prefix="$LZMA_PREFIX/$LZMA_VERSION"
-make install -j$NJ
-cd  ..
-rm  -Rf xz-${LZMA_VERSION}.tar.gz xz-${LZMA_VERSION}
+if [ ! -d "$LZMA_PREFIX/$LZMA_VERSION" ]; then
+  rm  -Rf xz-${LZMA_VERSION}.tar.gz xz-${LZMA_VERSION}
+  wget "https://tukaani.org/xz/xz-${LZMA_VERSION}.tar.gz"
+  tar -xf xz-${LZMA_VERSION}.tar.gz && cd xz-${LZMA_VERSION}
+  ./configure --prefix="$LZMA_PREFIX/$LZMA_VERSION"
+  make install -j$NJ
+  cd  ..
+  rm  -Rf xz-${LZMA_VERSION}.tar.gz xz-${LZMA_VERSION}
+fi
 
 
 #
@@ -163,14 +190,17 @@ rm  -Rf xz-${LZMA_VERSION}.tar.gz xz-${LZMA_VERSION}
 #
 ZSTD_VERSION=1.5.0
 ZSTD_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/zstd"
-git clone 'https://github.com/facebook/zstd.git' && cd zstd
-git checkout v${ZSTD_VERSION}
-env LIBRARY_PATH="$LZ4_PREFIX/$LZ4_VERSION/lib:$LZMA_PREFIX/$LZMA_VERSION/lib" \
-    CPATH="$LZ4_PREFIX/$LZ4_VERSION/include:$LZMA_PREFIX/$LZMA_VERSION/include" \
-    make install -j$NJ MOREFLAGS="-mtune=haswell -Wl,-z,now" \
-                       PREFIX="$ZSTD_PREFIX/$ZSTD_VERSION"
-cd ..
-rm -Rf zstd
+if [ ! -d "$ZSTD_PREFIX/$ZSTD_VERSION" ]; then
+  rm -Rf zstd
+  git clone 'https://github.com/facebook/zstd.git' && cd zstd
+  git checkout v${ZSTD_VERSION}
+  env LIBRARY_PATH="$LZ4_PREFIX/$LZ4_VERSION/lib:$LZMA_PREFIX/$LZMA_VERSION/lib" \
+      CPATH="$LZ4_PREFIX/$LZ4_VERSION/include:$LZMA_PREFIX/$LZMA_VERSION/include" \
+      make install -j$NJ MOREFLAGS="-mtune=haswell -Wl,-z,now" \
+                         PREFIX="$ZSTD_PREFIX/$ZSTD_VERSION"
+  cd ..
+  rm -Rf zstd
+fi
 
 
 #
@@ -187,38 +217,44 @@ rm -Rf zstd
 #
 LMDB_VERSION=0.9.29
 LMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/lmdb"
-git clone 'https://github.com/LMDB/lmdb.git' && cd lmdb/libraries/liblmdb
-git checkout LMDB_${LMDB_VERSION}
-make install -j$NJ XCFLAGS="-mtune=haswell -Wl,-z,now" \
-                   prefix="$LMDB_PREFIX/$LMDB_VERSION"
-cd ../../..
-rm -Rf lmdb
+if [ ! -d "$LMDB_PREFIX/$LMDB_VERSION" ]; then
+  rm -Rf lmdb
+  git clone 'https://github.com/LMDB/lmdb.git' && cd lmdb/libraries/liblmdb
+  git checkout LMDB_${LMDB_VERSION}
+  make install -j$NJ XCFLAGS="-mtune=haswell -Wl,-z,now" \
+                     prefix="$LMDB_PREFIX/$LMDB_VERSION"
+  cd ../../..
+  rm -Rf lmdb
+fi
 
 PYLMDB_VERSION=1.2.1
 PYLMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/py-lmdb"
-git clone 'https://github.com/jnwatson/py-lmdb.git' && cd py-lmdb
-git checkout py-lmdb_${PYLMDB_VERSION}
-for PYV in 3.6 3.7 3.8; do
-  python${PYV} -m venv venv${PYV}
-  (
-    . venv${PYV}/bin/activate
-    python -m pip install wheel Cython
-    env -u LMDB_FORCE_CFFI   \
-        -u LMDB_FORCE_SYSTEM \
-        -u LMDB_PURE         \
-        -u LMDB_INCLUDEDIR   \
-        -u LMDB_LIBDIR       \
-        CFLAGS=" -mtune=haswell -Wl,-z,now" \
-        LDFLAGS="-mtune=haswell -Wl,-z,now" \
-        python setup.py bdist_wheel
-    deactivate
-  )
-  mkdir -p  "$PYLMDB_PREFIX/$PYLMDB_VERSION"
-  unzip -od "$PYLMDB_PREFIX/$PYLMDB_VERSION" dist/lmdb-*.whl
-  git clean -xdff
-done
-cd ..
-rm -Rf py-lmdb
+if [ ! -d "$PYLMDB_PREFIX/$PYLMDB_VERSION" ]; then
+  rm -Rf "$PYLMDB_PREFIX/${PYLMDB_VERSION}_tmp" py-lmdb
+  git clone 'https://github.com/jnwatson/py-lmdb.git' && cd py-lmdb
+  git checkout py-lmdb_${PYLMDB_VERSION}
+  for PYV in 3.6 3.7 3.8; do
+    python${PYV} -m venv venv${PYV}
+    (
+      . venv${PYV}/bin/activate
+      python -m pip install wheel Cython
+      env -u LMDB_FORCE_CFFI   \
+          -u LMDB_FORCE_SYSTEM \
+          -u LMDB_PURE         \
+          -u LMDB_INCLUDEDIR   \
+          -u LMDB_LIBDIR       \
+          CFLAGS=" -mtune=haswell -Wl,-z,now" \
+          LDFLAGS="-mtune=haswell -Wl,-z,now" \
+          python setup.py bdist_wheel
+    )
+    mkdir -p  "$PYLMDB_PREFIX/${PYLMDB_VERSION}_tmp"
+    unzip -od "$PYLMDB_PREFIX/${PYLMDB_VERSION}_tmp" dist/lmdb-*.whl
+    git clean -xdff
+  done
+  cd ..
+  rm -Rf py-lmdb
+  mv "$PYLMDB_PREFIX/${PYLMDB_VERSION}_tmp" "$PYLMDB_PREFIX/${PYLMDB_VERSION}"
+fi
 
 
 #
@@ -236,14 +272,16 @@ rm -Rf py-lmdb
 #
 OPENBLAS_VERSION=0.3.17
 OPENBLAS_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/openblas"
-git clone 'https://github.com/xianyi/OpenBLAS.git' && cd OpenBLAS
-git checkout v${OPENBLAS_VERSION}
-make -j$NJ   USE_THREAD=1 USE_OPENMP=0 BIGNUMA=1 NUM_THREADS=256 BUILD_BFLOAT16=1 TARGET=GENERIC \
-             DYNAMIC_ARCH=1 DYNAMIC_LIST="PRESCOTT NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN"
-make install PREFIX="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"
-rmdir "$OPENBLAS_PREFIX/$OPENBLAS_VERSION/bin" || true  # Usually empty.
-cd ..
-rm -Rf OpenBLAS
+if [ ! -d "$OPENBLAS_PREFIX/$OPENBLAS_VERSION" ]; then
+  git clone 'https://github.com/xianyi/OpenBLAS.git' && cd OpenBLAS
+  git checkout v${OPENBLAS_VERSION}
+  make -j$NJ   USE_THREAD=1 USE_OPENMP=0 BIGNUMA=1 NUM_THREADS=256 BUILD_BFLOAT16=1 TARGET=GENERIC \
+               DYNAMIC_ARCH=1 DYNAMIC_LIST="PRESCOTT NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN"
+  make install PREFIX="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"
+  rmdir "$OPENBLAS_PREFIX/$OPENBLAS_VERSION/bin" || true  # Apparently empty.
+  cd ..
+  rm -Rf OpenBLAS
+fi
 
 
 #
@@ -263,26 +301,28 @@ export OPENBLAS="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"
 export NPY_BLAS_ORDER="OpenBLAS"
 export NPY_LAPACK_ORDER="OpenBLAS"
 export NPY_NUM_BUILD_JOBS=$NJ
-git clone https://github.com/numpy/numpy.git Numpy
 for NPY in 1.19.5 1.20.3 1.21.2; do
   if [ "$NPY" = 1.19.5 ]; then PYV_LIST="3.6 3.7 3.8" CPU_BASELINE=''
   else                         PYV_LIST="    3.7 3.8" CPU_BASELINE='--cpu-baseline=sse sse2'
   fi
   for PYV in $PYV_LIST; do
-    PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
-    cp -a Numpy "Numpy-${NPY}-cp${PYVS}"
-    cd          "Numpy-${NPY}-cp${PYVS}"
-    python${PYV} -m venv venv
-    git checkout v$NPY
-    (
-      . venv/bin/activate
-      python -m pip install wheel Cython
-      python setup.py build ${CPU_BASELINE:+"$CPU_BASELINE"} bdist_wheel
-      deactivate
-      mkdir -p "${NPY_PREFIX}/${NPY}-cp${PYVS}"
-      unzip -d "${NPY_PREFIX}/${NPY}-cp${PYVS}" dist/numpy-*.whl
-    ) &
-    cd ..
+    if [ ! -d "${NPY_PREFIX}/python${PYV}-v${NPY}" ]; then
+      if [ ! -d Numpy ]; then git clone https://github.com/numpy/numpy.git Numpy; fi
+      cp -a Numpy "Numpy-python${PYV}-v${NPY}"
+      (
+        cd        "Numpy-python${PYV}-v${NPY}"
+        git checkout v$NPY
+        python${PYV} -m venv venv
+        . venv/bin/activate
+        python -m pip install wheel Cython
+        python setup.py build ${CPU_BASELINE:+"$CPU_BASELINE"} bdist_wheel
+        deactivate
+        mkdir -p "${NPY_PREFIX}/python${PYV}-v${NPY}"
+        unzip -d "${NPY_PREFIX}/python${PYV}-v${NPY}" dist/numpy-*.whl
+        cd ..
+        rm -Rf    "Numpy-python${PYV}-v${NPY}"
+      ) &
+    fi
   done
 done
 wait
@@ -304,23 +344,26 @@ for SPY in 1.5.4 1.6.3 1.7.1; do
   else                        PYV_LIST="    3.7 3.8"
   fi
   for PYV in $PYV_LIST; do
-    PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
-    cp -a Scipy "Scipy-${SPY}-cp${PYVS}"
-    cd          "Scipy-${SPY}-cp${PYVS}"
-    python${PYV} -m venv venv
-    git checkout v$SPY
-    git submodule sync
-    git submodule update --init
-    (
-      . venv/bin/activate
-      export PYTHONPATH="${NPY_PREFIX}/${NPY_OLD}-cp${PYVS}:${PYTHONPATH}"
-      python -m pip install wheel Cython pythran pybind11
-      python setup.py bdist_wheel
-      deactivate
-      mkdir -p "${SPY_PREFIX}/${SPY}-cp${PYVS}"
-      unzip -d "${SPY_PREFIX}/${SPY}-cp${PYVS}" dist/scipy-*.whl
-    ) &
-    cd ..
+    if [ ! -d "${SPY_PREFIX}/python${PYV}-v${SPY}" ]; then
+      if [ ! -d Scipy ]; then git clone https://github.com/scipy/scipy.git Scipy; fi
+      cp -a Scipy "Scipy-python${PYV}-v${SPY}"
+      (
+        cd        "Scipy-python${PYV}-v${SPY}"
+        git checkout v$SPY
+        git submodule sync
+        git submodule update --init
+        python${PYV} -m venv venv
+        . venv/bin/activate
+        export PYTHONPATH="${NPY_PREFIX}/python${PYV}-v${NPY_OLD}:${PYTHONPATH}"
+        python -m pip install wheel Cython pythran pybind11
+        python setup.py bdist_wheel
+        deactivate
+        mkdir -p "${SPY_PREFIX}/python${PYV}-v${SPY}"
+        unzip -d "${SPY_PREFIX}/python${PYV}-v${SPY}" dist/scipy-*.whl
+        cd ..
+        rm -Rf    "Scipy-python${PYV}-v${SPY}"
+      ) &
+    fi
   done
 done
 wait
@@ -351,41 +394,38 @@ SPY_OLD=1.5.4   # Used as compatibility target in further recipes!
 #
 FFTW_VERSION=3.3.9
 FFTW_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/fftw"
-wget "https://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz"
-tar -xf fftw-${FFTW_VERSION}.tar.gz && cd fftw-${FFTW_VERSION}
-for ENABLE_PRECISION in --disable-single --enable-single; do
-  (
-    export OMPI_ALLOW_RUN_AS_ROOT=1           # make check runs tests with mpirun.
-    export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1   # make check runs tests with mpirun.
-    export PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/bin:$PATH"
-    ./configure --enable-static      \
-                --enable-shared      \
-                --disable-openmp     \
-                --enable-threads     \
-                --enable-mpi         \
-                --enable-sse2        \
-                --enable-avx         \
-                --enable-avx2        \
-                --enable-fma         \
-                --enable-avx-128-fma \
-                --disable-avx512     \
-                --disable-kcvi       \
-                ${ENABLE_PRECISION}  \
-                --prefix="$FFTW_PREFIX/$FFTW_VERSION"
-    make -j$NJ
-    make check          # FFTW has been known to break with some compilers. Best to be safe.
-    make install
-    make distclean
-  )
-done
-cd  ..
-rm  -Rf fftw-${FFTW_VERSION}.tar.gz fftw-${FFTW_VERSION}
-
-
-#
-# Virtualenv Cleanup
-#
-rm -Rf /opt/venv*
+if [ ! -d "$FFTW_PREFIX/$FFTW_VERSION" ]; then
+  rm  -Rf fftw-${FFTW_VERSION}.tar.gz fftw-${FFTW_VERSION}
+  wget "https://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz"
+  tar -xf fftw-${FFTW_VERSION}.tar.gz && cd fftw-${FFTW_VERSION}
+  for ENABLE_PRECISION in --disable-single --enable-single; do
+    (
+      export OMPI_ALLOW_RUN_AS_ROOT=1           # make check runs tests with mpirun.
+      export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1   # make check runs tests with mpirun.
+      export PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/bin:$PATH"
+      ./configure --enable-static      \
+                  --enable-shared      \
+                  --disable-openmp     \
+                  --enable-threads     \
+                  --enable-mpi         \
+                  --enable-sse2        \
+                  --enable-avx         \
+                  --enable-avx2        \
+                  --enable-fma         \
+                  --enable-avx-128-fma \
+                  --disable-avx512     \
+                  --disable-kcvi       \
+                  ${ENABLE_PRECISION}  \
+                  --prefix="$FFTW_PREFIX/$FFTW_VERSION"
+      make -j$NJ
+      make check          # FFTW has been known to break with some compilers. Best to be safe.
+      make install
+      make distclean
+    )
+  done
+  cd  ..
+  rm  -Rf fftw-${FFTW_VERSION}.tar.gz fftw-${FFTW_VERSION}
+fi
 
 
 #
@@ -507,8 +547,8 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
         python${PYV} -m venv venv
         . venv/bin/activate
         
-        export PYTHONPATH="${SPY_PREFIX}/${SPY_OLD}-cp${PYVS}:${PYTHONPATH}"
-        export PYTHONPATH="${NPY_PREFIX}/${NPY_OLD}-cp${PYVS}:${PYTHONPATH}"
+        export PYTHONPATH="${SPY_PREFIX}/python${PYV}-v${SPY_OLD}:${PYTHONPATH}"
+        export PYTHONPATH="${NPY_PREFIX}/python${PYV}-v${NPY_OLD}:${PYTHONPATH}"
         
         export PYTORCH_BUILD_VERSION="${PYTORCH_VERSION}"
         export PYTORCH_BUILD_NUMBER=0
@@ -586,3 +626,11 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
   done
 done
 rm -Rf PyTorch
+
+
+#
+# Print compiler cache stats on exit, then clean out the cache.
+#
+ccache -s
+ccache -C
+
