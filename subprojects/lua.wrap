@@ -1,4 +1,4 @@
 [wrap-git]
 url = https://github.com/lua/lua.git
-revision = dbdc74dc5502c2e05e1c1e2ac894943f418c8431
+revision = 91673a8ec0ae55e188a790bd2dfdc99246adf20e
 patch_directory = lua
