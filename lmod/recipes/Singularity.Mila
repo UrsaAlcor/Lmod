@@ -1,59 +1,56 @@
-Bootstrap: docker
-From: alpine:3.14.0
+Bootstrap: localimage
+From: static-lua.sif
 Stage: setup
 
 
 %setup
 test -d .git # Assert we are building from the Git root directory.
-mkdir -p     "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
+mkdir -p     "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec/lmod/recipes"
 tar -cf - --exclude=./lmod/recipes --exclude="*.sif" --exclude="build-temp-*" . | \
 tar -xf - -C "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
 cd           "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
-git clean -d -f -x
+git clean -xdff
 
 
 %post
-# Install prerequisite packages
-apk add -U --no-cache bash zsh tcsh fish less procps grep nano
-apk add -U --no-cache alpine-sdk libtool perl bsd-compat-headers linux-headers \
-                      util-linux coreutils python3 meson
+#
+# Install packages for a decent BuildRoot bootstrap, plus a few select
+# utilities for debugging, plus dependencies for Lmod build.
+#
+apk update  -U
+apk upgrade -U --available
+apk add     -U alpine-sdk git coreutils findutils ncurses-dev strace nano \
+               file patch less grep perl rsync bash zsh tcsh fish procps \
+               linux-headers util-linux python3 meson
+git config --global advice.detachedHead false
 
 
-# Build & install static Lua
+#
+# Install static Lua(c) at correct location and create symlinks and wrappers of
+# various kinds.
+#
 export LMOD_PREFIX="/cvmfs/config.mila.quebec"
 export LMOD_ROOT="${LMOD_PREFIX}/lmod"
 export LMOD_CONFIG_PREFIX="${LMOD_ROOT}/etc/lmod"
 export LMOD_MODULE_ROOT="${LMOD_ROOT}/modulefiles"
 export LUA_PREFIX="${LMOD_ROOT}/lua"
-if   [ "$(uname -m)" = "x86_64" ]; then
-  export CFLAGS="-march=x86-64 -mtune=haswell" # Should perform well on Zen2 as well
-elif [ "$(uname -m)" = "ppc64le" ]; then
-  export CFLAGS="-mtune=power9"                # Should perform well on POWER8 as well
-fi
-cd "${LMOD_PREFIX}"
-meson setup -Dprefix="$LUA_PREFIX" \
-            -Dbindir=''            \
-            -Dbuildtype=minsize    \
-            -Db_staticpic=false    \
-            -Db_ndebug=true        \
-            -Db_lto=true           \
-            build
-meson compile -C build
-meson install -C build
-
-
-# Create symlinks and wrappers of various kinds to the static Lua(c).
-LUA_NAME="$(basename $LUA_PREFIX/lua*)"
-LUAC_NAME="luac${LUA_NAME#lua}"
-LUA_NOARCH_NAME="${LUA_NAME%.*}"
-LUAC_NOARCH_NAME="${LUAC_NAME%.*}"
-ln -s "${LUA_NAME}" "${LUA_PREFIX}/${LUAC_NAME}"
-echo -e "#!/bin/sh\nexec \"$LUA_PREFIX/$LUA_NOARCH_NAME.$(uname -m)\" \"\$@\"" > \
-                          "$LUA_PREFIX/$LUA_NOARCH_NAME"
-echo -e "#!/bin/sh\nexec \"$LUA_PREFIX/$LUAC_NOARCH_NAME.$(uname -m)\" \"\$@\"" > \
-                          "$LUA_PREFIX/$LUAC_NOARCH_NAME"
-chmod 755                 "$LUA_PREFIX/$LUA_NOARCH_NAME" \
-                          "$LUA_PREFIX/$LUAC_NOARCH_NAME"
+mkdir -p      "$LUA_PREFIX"
+mv /opt/lua*  "$LUA_PREFIX"
+cd            "$LUA_PREFIX"
+for LUA_NAME in lua[!c]*; do
+  LUAC_NAME=luac${LUA_NAME#lua}
+  LUA_NOARCH_NAME=${LUA_NAME%.*}
+  LUAC_NOARCH_NAME=${LUAC_NAME%.*}
+  ln -s $LUA_NAME $LUAC_NAME
+  # In the following wrapper scripts, $LUA_PREFIX, $LUA_NOARCH_NAME and $LUAC_NOARCH_NAME
+  # are statically evaluated, but the uname -m is evaluated dynamically on every invocation!
+  echo -e "#!/bin/sh\nexec \"$LUA_PREFIX/$LUA_NOARCH_NAME.\$(uname -m)\" \"\$@\"" > \
+                            "$LUA_PREFIX/$LUA_NOARCH_NAME"
+  echo -e "#!/bin/sh\nexec \"$LUA_PREFIX/$LUAC_NOARCH_NAME.\$(uname -m)\" \"\$@\"" > \
+                            "$LUA_PREFIX/$LUAC_NOARCH_NAME"
+  chmod 755                 "$LUA_PREFIX/$LUA_NOARCH_NAME" \
+                            "$LUA_PREFIX/$LUAC_NOARCH_NAME"
+done
 
 
 #
@@ -65,6 +62,8 @@ chmod 755                 "$LUA_PREFIX/$LUA_NOARCH_NAME" \
 # Singularity %post section these variables contain "magic" directories proper
 # to Singularity itself.
 #
+cd "${LMOD_PREFIX}"
+meson subprojects download
 cd "${LMOD_PREFIX}/subprojects/lmod"
 ./configure --help
 env -u LD_LIBRARY_PATH -u LD_PRELOAD \
@@ -82,10 +81,12 @@ env -u LD_LIBRARY_PATH -u LD_PRELOAD \
 make install &> /dev/null
 
 
+#
 # Clean up Meson caches and subproject checkouts (which are fully reproducible)
+#
 cd "${LMOD_PREFIX}"
 meson subprojects purge --confirm
-rm -Rf build subprojects/packagecache
+rm -Rf subprojects/packagecache
 
 
 #
@@ -135,7 +136,6 @@ EOF
 
 
 
-
 Bootstrap: docker
 From: ubuntu:18.04
 Stage: final
@@ -174,6 +174,8 @@ shell)
     elif [ "${SINGULARITY_SHELL:-}" = "/bin/csh" ]; then
         set -- -l
     elif [ "${SINGULARITY_SHELL:-}" = "/bin/tcsh" ]; then
+        set -- -l
+    elif [ "${SINGULARITY_SHELL:-}" = "/usr/bin/fish" ]; then
         set -- -l
     elif test -z "${SINGULARITY_SHELL:-}"; then
         export SINGULARITY_SHELL=/bin/bash

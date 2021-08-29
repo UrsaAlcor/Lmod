@@ -1,13 +1,12 @@
-Bootstrap: docker
-From: alpine:3.14.1
+Bootstrap: localimage
+From: static-lua.sif
 Stage: setup
 
 
 %setup
 test -d .git # Assert we are building from the Git root directory.
-cp -a ./lmod/recipes/buildroot "${SINGULARITY_ROOTFS}/opt/buildroot"
 mkdir -p     "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec/lmod/recipes"
-tar -cf - --exclude=./lmod/recipes --exclude="*.sif" . | \
+tar -cf - --exclude=./lmod/recipes --exclude="*.sif" --exclude="build-temp-*" . | \
 tar -xf - -C "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
 cd           "${SINGULARITY_ROOTFS}/cvmfs/config.mila.quebec"
 git clean -xdff
@@ -16,51 +15,28 @@ git clean -xdff
 %post
 #
 # Install packages for a decent BuildRoot bootstrap, plus a few select
-# utilities for debugging, plus dependencies for Lua/Lmod build.
+# utilities for debugging, plus dependencies for Lmod build.
 #
 apk update  -U
 apk upgrade -U --available
 apk add     -U alpine-sdk git coreutils findutils ncurses-dev strace nano \
                file patch less grep perl rsync bash zsh tcsh fish procps \
-               libtool autoconf automake groff bsd-compat-headers \
                linux-headers util-linux python3 meson
 git config --global advice.detachedHead false
 
 
-# Build & install static Lua
+#
+# Install static Lua(c) at correct location and create symlinks and wrappers of
+# various kinds.
+#
 export LMOD_PREFIX="/cvmfs/config.mila.quebec"
 export LMOD_ROOT="${LMOD_PREFIX}/lmod"
 export LMOD_CONFIG_PREFIX="${LMOD_ROOT}/etc/lmod"
 export LMOD_MODULE_ROOT="${LMOD_ROOT}/modulefiles"
 export LUA_PREFIX="${LMOD_ROOT}/lua"
-cd  "${LMOD_PREFIX}"
-meson subprojects download
-for BUILDROOT in /opt/buildroot/*; do
-  # Create Buildroot cross-toolchain in $BUILDROOT
-  cd "${BUILDROOT}"
-  make -C "${LMOD_PREFIX}"/subprojects/buildroot-2021.08-rc2 V=1 O=$(pwd)
-  
-  # Build using cross-toolchain in $BUILDROOT
-  (
-  export PATH="$(pwd)/host/bin:$PATH"
-  meson setup -Dprefix="$LUA_PREFIX" \
-              -Dbindir=''            \
-              -Dbuildtype=minsize    \
-              -Db_staticpic=false    \
-              -Db_ndebug=true        \
-              -Db_lto=true           \
-              build "${LMOD_PREFIX}" \
-              --cross alpine-linux.cross
-  meson compile -C build
-  meson install -C build
-  rm -Rf build
-  )
-  cd "${LMOD_PREFIX}"
-done
-
-
-# Create symlinks and wrappers of various kinds to the static Lua(c).
-cd "${LUA_PREFIX}"
+mkdir -p      "$LUA_PREFIX"
+mv /opt/lua*  "$LUA_PREFIX"
+cd            "$LUA_PREFIX"
 for LUA_NAME in lua[!c]*; do
   LUAC_NAME=luac${LUA_NAME#lua}
   LUA_NOARCH_NAME=${LUA_NAME%.*}
@@ -86,6 +62,8 @@ done
 # Singularity %post section these variables contain "magic" directories proper
 # to Singularity itself.
 #
+cd "${LMOD_PREFIX}"
+meson subprojects download
 cd "${LMOD_PREFIX}/subprojects/lmod"
 ./configure --help
 env -u LD_LIBRARY_PATH -u LD_PRELOAD \
@@ -108,7 +86,7 @@ make install &> /dev/null
 #
 cd "${LMOD_PREFIX}"
 meson subprojects purge --confirm
-rm -Rf /opt/buildroot subprojects/packagecache 
+rm -Rf subprojects/packagecache
 
 
 #
@@ -158,7 +136,6 @@ EOF
 
 
 
-
 Bootstrap: docker
 From: alpine:3.14.1
 Stage: final
@@ -198,6 +175,8 @@ shell)
         set -- -l
     elif [ "${SINGULARITY_SHELL:-}" = "/bin/tcsh" ]; then
         set -- -l
+    elif [ "${SINGULARITY_SHELL:-}" = "/usr/bin/fish" ]; then
+        set -- -l
     elif test -z "${SINGULARITY_SHELL:-}"; then
         export SINGULARITY_SHELL=/bin/bash
         set -- -l
@@ -207,8 +186,8 @@ esac
 
 
 %post
-apk add -U --no-cache bash zsh tcsh fish less procps grep nano
-apk add -U --no-cache mandoc man-pages bash-doc zsh-doc tcsh-doc fish-doc
+apk add -U --no-cache bash zsh tcsh fish less procps grep nano \
+                      mandoc man-pages bash-doc zsh-doc tcsh-doc fish-doc
 sed -i -e 's|/bin/ash|/bin/bash|g' /etc/passwd
 ln -sf /bin/bash /bin/sh
 rm -rf /root/.ash_history
