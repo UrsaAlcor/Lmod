@@ -66,26 +66,26 @@ ccache -s     # Print statistics    of compiler cache
 
 # OFED
 OFED=MLNX_OFED_LINUX-5.2-2.2.0.0-ubuntu18.04-x86_64
-if [ -f "$OFED".tgz ]; then
+if [ ! -d "/usr/mpi/gcc/openmpi-4.1.0rc5" ]; then
   tar -xf "$OFED".tgz
   cd      "$OFED"
   ./mlnxofedinstall --force --user-space-only --without-fw-update
   cd      ..
-  rm -Rf mellanox neohost "$OFED" "$OFED".tgz # Installer left-over junk.
 fi
+rm -Rf mellanox neohost "$OFED" "$OFED".tgz # Installer left-over junk.
 
 # MKL
-if [ -f l_BaseKit_p_2021.3.0.3219_offline.sh ]; then
+if [ ! -d "/cvmfs/ai.mila.quebec/apps/x86_64/common/oneapi/2021.3.0.3219" ]; then
   bash  l_BaseKit_p_2021.3.0.3219_offline.sh -a -s --eula accept \
         --install-dir="/cvmfs/ai.mila.quebec/apps/x86_64/common/oneapi/2021.3.0.3219" \
         --components 'intel.oneapi.lin.mkl.devel:intel.oneapi.lin.dnnl:intel.oneapi.lin.dal.devel:intel.oneapi.lin.dpcpp-cpp-compiler:intel.oneapi.lin.dpcpp_dbg:intel.oneapi.lin.ipp.devel:intel.oneapi.lin.ippcp.devel:intel.oneapi.lin.vpl:intel.oneapi.lin.dpl:intel.oneapi.lin.vtune'
-  rm -Rf intel l_BaseKit_p_2021.3.0.3219_offline.sh # Installer left-over junk.
 fi
+rm -Rf intel l_BaseKit_p_2021.3.0.3219_offline.sh # Installer left-over junk.
 
 # CUDA
 TK=/cvmfs/ai.mila.quebec/apps/x86_64/common/cuda
 for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
-  if [ -f cuda_${CUDA}.*.run ]; then
+  if [ ! -d "$TK/$CUDA" ]; then
     (
       rm -Rf   "$TK/$CUDA"
       mkdir -p "$TK/$CUDA"
@@ -95,6 +95,7 @@ for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
   fi
 done
 wait
+rm cuda_*.run
 
 # cuDNN
 CUDNN_VERSION_FULL=8.1.1.33
