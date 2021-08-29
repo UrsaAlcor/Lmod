@@ -615,7 +615,7 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
           # Install wheel first (becauses the requirements need it), then reqs, then build PyTorch.
           python -m pip install wheel
           python -m pip install -r requirements.txt
-          time python setup.py bdist_wheel
+          python setup.py bdist_wheel
           
           # Repair patch to tools/setup_helpers/cmake.py
           git checkout -- tools/setup_helpers/cmake.py
