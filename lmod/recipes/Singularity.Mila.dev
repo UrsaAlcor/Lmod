@@ -95,7 +95,7 @@ for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
   fi
 done
 wait
-rm cuda_*.run
+rm -f cuda_*.run
 
 # cuDNN
 CUDNN_VERSION_FULL=8.1.1.33
@@ -148,8 +148,10 @@ fi
 #
 # LINKER HACK!
 #
-if [ -f /usr/bin/x86_64-linux-gnu-ld.lua ]; then
+if [ ! -f /usr/bin/x86_64-linux-gnu-ld.orig ]; then
   mv /usr/bin/x86_64-linux-gnu-ld     /usr/bin/x86_64-linux-gnu-ld.orig
+fi
+if [   -f /usr/bin/x86_64-linux-gnu-ld.lua ]; then
   mv /usr/bin/x86_64-linux-gnu-ld.lua /usr/bin/x86_64-linux-gnu-ld
 fi
 

@@ -7,7 +7,7 @@ Stage: setup
 test -d .git # Assert we are building from the Git root directory.
 cp -a ./lmod/recipes/buildroot "${SINGULARITY_ROOTFS}/opt/buildroot"
 mkdir -p     "${SINGULARITY_ROOTFS}/opt/Alcor"
-tar -cf - --exclude=./lmod/recipes --exclude="*.sif" . | \
+tar -cf - --exclude=./lmod/recipes --exclude="*.sif" --exclude="build-temp-*" . | \
 tar -xf - -C "${SINGULARITY_ROOTFS}/opt/Alcor"
 cd           "${SINGULARITY_ROOTFS}/opt/Alcor"
 git clean -xdff
