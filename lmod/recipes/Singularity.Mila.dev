@@ -446,8 +446,6 @@ NCCL_VERSION_BUILD=2.10.3-1
 NCCL_VERSION=${NCCL_VERSION_BUILD%%-*}   # Strip build number
 NCCL_VERSION=${NCCL_VERSION%.*}          # Strip patch number
 NCCL_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl"
-git clone https://github.com/NVIDIA/nccl.git NCCL && cd NCCL
-git checkout v$NCCL_VERSION_BUILD
 for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
   case "$CUDA" in
     10.2 )
@@ -468,18 +466,22 @@ for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
                     -Wno-deprecated-gpu-targets -Xfatbin -compress-all"
       ;;
   esac
-  (
-    export PATH="$TK/$CUDA/bin:${PATH}"
-    export CPATH="$TK/$CUDA/include"
-    export LIBRARY_PATH="$TK/$CUDA/lib64"
-    export LDFLAGS="-Wl,-z,now,-rpath,$TK/$CUDA/lib64"
-    make -j$NJ src.build CUDA_HOME="$TK/$CUDA" NVCC_GENCODE="$NVCC_GENCODE"
-    make install PREFIX="$NCCL_PREFIX/$CUDA-v$NCCL_VERSION"
-    make clean
-  )
-  git clean -xdff
+  if [ ! -d "$NCCL_PREFIX/$CUDA-v$NCCL_VERSION" ]; then
+    if [ ! -d NCCL ]; then git clone https://github.com/NVIDIA/nccl.git NCCL; fi
+    (
+      cd NCCL
+      git checkout v$NCCL_VERSION_BUILD
+      export PATH="$TK/$CUDA/bin:${PATH}"
+      export CPATH="$TK/$CUDA/include"
+      export LIBRARY_PATH="$TK/$CUDA/lib64"
+      export LDFLAGS="-Wl,-z,now,-rpath,$TK/$CUDA/lib64"
+      make -j$NJ src.build CUDA_HOME="$TK/$CUDA" NVCC_GENCODE="$NVCC_GENCODE"
+      make install PREFIX="$NCCL_PREFIX/$CUDA-v$NCCL_VERSION"
+      make clean
+      git clean -xdff
+    )
+  fi
 done
-cd ..
 rm -Rf NCCL
 
 
@@ -488,33 +490,36 @@ rm -Rf NCCL
 #
 MAGMA_VERSION=2.6.1
 MAGMA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/magma"
-git clone https://bitbucket.org/icl/magma.git MAGMA && cd MAGMA
-git checkout v${MAGMA_VERSION}
 for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
   case "$CUDA" in
     10.2 )     GPU_TARGET="sm_37 sm_52 sm_70 sm_75" ;;
     11.0 )     GPU_TARGET="sm_37 sm_52 sm_70 sm_75 sm_80" ;;
     11.[^0] )  GPU_TARGET="sm_37 sm_52 sm_70 sm_75 sm_80 sm_86" ;;
   esac
-  #
-  # Lightly edit the example OpenBLAS makefile as it is copied to make it more usable:
-  #   - Enable overriding GPU_TARGET
-  #   - Disable OpenMP (bad forking with GNU OMP libgomp)
-  #
-  sed -e 's/GPU_TARGET\s*=/GPU_TARGET ?=/g' \
-      -e 's/-fopenmp//g' \
-      make.inc-examples/make.inc.openblas > make.inc
-  env BACKEND=cuda \
-      PATH="$TK/$CUDA/bin:${PATH}" \
-      CUDADIR="$TK/$CUDA" \
-      LIBDIR="-L$TK/$CUDA/lib64" \
-      OPENBLASDIR="$OPENBLAS_PREFIX/$OPENBLAS_VERSION" \
-      GPU_TARGET="$GPU_TARGET" \
-      NVCCFLAGS="-Wno-deprecated-gpu-targets -Xfatbin -compress-all" \
-      make install -j$NJ prefix="$MAGMA_PREFIX/$CUDA-v$MAGMA_VERSION"
-  git clean -xdff
+  if [ ! -d "$MAGMA_PREFIX/$CUDA-v$MAGMA_VERSION" ]; then
+    if [ ! -d MAGMA ]; then git clone https://bitbucket.org/icl/magma.git MAGMA; fi
+    cd MAGMA
+    git checkout v${MAGMA_VERSION}
+    #
+    # Lightly edit the example OpenBLAS makefile as it is copied to make it more usable:
+    #   - Enable overriding GPU_TARGET
+    #   - Disable OpenMP (bad forking with GNU OMP libgomp)
+    #
+    sed -e 's/GPU_TARGET\s*=/GPU_TARGET ?=/g' \
+        -e 's/-fopenmp//g' \
+        make.inc-examples/make.inc.openblas > make.inc
+    env BACKEND=cuda \
+        PATH="$TK/$CUDA/bin:${PATH}" \
+        CUDADIR="$TK/$CUDA" \
+        LIBDIR="-L$TK/$CUDA/lib64" \
+        OPENBLASDIR="$OPENBLAS_PREFIX/$OPENBLAS_VERSION" \
+        GPU_TARGET="$GPU_TARGET" \
+        NVCCFLAGS="-Wno-deprecated-gpu-targets -Xfatbin -compress-all" \
+        make install -j$NJ prefix="$MAGMA_PREFIX/$CUDA-v$MAGMA_VERSION"
+    git clean -xdff
+    cd ..
+  fi
 done
-cd ..
 rm -Rf MAGMA
 
 
@@ -539,91 +544,96 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
       11.0 )     TORCH_CUDA_ARCH_LIST="3.7;5.2;7.0;7.5;8.0" ;;
       11.[^0] )  TORCH_CUDA_ARCH_LIST="3.7;5.2;7.0;7.5;8.0;8.6" ;;
     esac
-    for PYV in 3.6 3.7 3.8; do
-      PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
-      cp -a PyTorch "PyTorch-${PYVS}"
-      (
-        cd          "PyTorch-${PYVS}"
-        python${PYV} -m venv venv
-        . venv/bin/activate
-        
-        export PYTHONPATH="${SPY_PREFIX}/python${PYV}-v${SPY_OLD}:${PYTHONPATH}"
-        export PYTHONPATH="${NPY_PREFIX}/python${PYV}-v${NPY_OLD}:${PYTHONPATH}"
-        
-        export PYTORCH_BUILD_VERSION="${PYTORCH_VERSION}"
-        export PYTORCH_BUILD_NUMBER=0
-        export TORCH_NVCC_FLAGS="-Wno-deprecated-gpu-targets -Xfatbin -compress-all"
-        export TORCH_CUDA_ARCH_LIST
-        export BLAS=OpenBLAS             # Require OpenBLAS for linear algebra. Our OpenBLAS is built against pthreads and not OpenMP.
-        export ATEN_THREADING=TBB        # Require TBB rather than OpenMP because OpenMP forks badly.
-        export MKL_THREADING=TBB         # Require TBB rather than OpenMP because OpenMP forks badly.
-        export MKLDNN_CPU_RUNTIME=TBB    # Require TBB rather than OpenMP because OpenMP forks badly.
-        export MKLDNN_ARCH_OPT_FLAGS="-msse2"  # Require portable MKLDNN (SSE2, ddefaults to SSE4.1)
-        export DNNL_ARCH_OPT_FLAGS="-msse2"    # Require portable MKLDNN (SSE2, ddefaults to SSE4.1)
-        export USE_TBB=1                 # Require TBB
-        export USE_OPENMP=0              # Demand not to use OpenMP (due to fork-unsafeness of libgomp, the default implementation of OpenMP).
-        export USE_MKLDNN=1              # Demand to use MKLDNN
-        export USE_CUDNN=1               # Demand to use cuDNN
-        export USE_STATIC_CUDNN=0        # Want dynamic link to avoid wasting disk space
-        export USE_SYSTEM_NCCL=1         # Compile using system NCCL
-        export USE_STATIC_NCCL=0         # Want dynamic link to avoid wasting disk space
-        export USE_DISTRIBUTED=1         # Want distributed backends enabled
-        export USE_MPI=1                 # Want (Open)MPI  distributed backend
-        export USE_GLOO=1                # Want Gloo       distributed backend
-        export USE_TENSORPIPE=1          # Want TensorPipe distributed backend
-        export USE_IBVERBS=1             # Want ibverbs
-        export USE_ZSTD=1                # Want Zstd
-        export USE_LMDB=1                # Want LMDB
-        export USE_TENSORRT=1            # Want TensorRT
-        export BUILD_CUSTOM_PROTOBUF=1   # Enable building custom protobuf.
-        
-        export CUDA_HOME="$TK/$CUDA"                                    # The standard way to signal the CUDA Toolkit's location.
-        export CUDNN_ROOT="$CUDNN_PREFIX/${CUDA}-v${CUDNN_VERSION}"     # Wanted by FindCUDNN.cmake
-        export NCCL_VERSION                                             # Wanted by FindNCCL.cmake, forces correct version check.
-        export NCCL_ROOT="$NCCL_PREFIX/${CUDA}-v${NCCL_VERSION}"        # Wanted by FindNCCL.cmake
-        export NCCL_LIB_DIR="${NCCL_ROOT}/lib"                          # Wanted by FindNCCL.cmake
-        export NCCL_INCLUDE_DIR="${NCCL_ROOT}/include"                  # Wanted by FindNCCL.cmake
-        export TENSORRT_ROOT="$TRT_PREFIX/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  # Wanted by cmake/public/cuda.cmake
-        export TENSORRT_INCLUDE_DIR="${TENSORRT_ROOT}/include"          # Wanted by cmake/public/cuda.cmake
-        export LMDB_DIR="$LMDB_PREFIX/$LMDB_VERSION"                    # Wanted by FindLMDB.cmake
-        export MAGMA_HOME="$MAGMA_PREFIX/${CUDA}-v${MAGMA_VERSION}"     # Wanted by FindMAGMA.cmake
-        # A small difficulty appears with PyTorch 1.9.0 re: OpenBLAS. PyTorch 1.9.0 performs
-        # detection for BLAS twice, using different logic, and one path reuses $OpenBLAS_HOME
-        # while the other uses a different strategy that involves looking at hardcoded paths,
-        # $CPATH, $LIBRARY_PATH *and* $LD_LIBRARY_PATH, even though the latter variable
-        # normally serves a different purpose. But we are obliged to use this later variable
-        # because otherwise an -L flag is not supplied to the linker, and so our linker hack
-        # to inject -rpath is not activated. So we therefore indicate the location of OpenBLAS
-        # through all of $OpenBLAS_HOME, $CPATH and $LD_LIBRARY_PATH but *not* $LIBRARY_PATH,
-        # however strange. This does not appear to hurt PyTorch 1.8.x.
-        export OpenBLAS_HOME="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"       # Wanted by FindOpenBLAS.cmake (PyTorch 1.8.x)
-        export LD_LIBRARY_PATH="$OPENBLAS_PREFIX/$OPENBLAS_VERSION/lib:$LD_LIBRARY_PATH" # Wanted by FindBLAS.cmake     (PyTorch 1.9.x). We must not use LIBRARY_PATH in order to leverage the linker hack.
-        export CPATH="$OPENBLAS_PREFIX/$OPENBLAS_VERSION/include"       # Wanted by FindBLAS.cmake     (PyTorch 1.9.x)
-        export PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/bin:$PATH"           # Sufficient to discover OpenMPI
-        
-        # Propagate additional variables into CMake's invocation
-        sed -i -e "s:'MKLDNN_CPU_RUNTIME',:'MKLDNN_CPU_RUNTIME', 'MKLDNN_ARCH_OPT_FLAGS', 'DNNL_ARCH_OPT_FLAGS', 'TENSORRT_ROOT', 'SOURCE_DATE_EPOCH',:g" tools/setup_helpers/cmake.py
-        
-        # Install wheel first (becauses the requirements need it), then reqs, then build PyTorch.
-        python -m pip install wheel
-        python -m pip install -r requirements.txt
-        python setup.py bdist_wheel
-        
-        # Repair patch to tools/setup_helpers/cmake.py
-        git checkout -- tools/setup_helpers/cmake.py
-        
-        # Expand the wheel into the destination.
-        mkdir -p "${PYTORCH_PREFIX}/python${PYV}-cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}"
-        unzip -d "${PYTORCH_PREFIX}/python${PYV}-cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}" dist/torch-*.whl
-        
-        # Leave
-        deactivate
-        cd ..
-        rm -Rf "PyTorch-${PYVS}"
-      ) &
-    done
-    wait
+    (
+      rm -Rf        "PyTorch-cuda${CUDA}"
+      cp -a PyTorch "PyTorch-cuda${CUDA}"
+      cd            "PyTorch-cuda${CUDA}"
+      for PYV in 3.6 3.7 3.8; do
+        PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
+        (
+          python${PYV} -m venv venv
+          . venv/bin/activate
+          
+          export PYTHONPATH="${SPY_PREFIX}/python${PYV}-v${SPY_OLD}:${PYTHONPATH}"
+          export PYTHONPATH="${NPY_PREFIX}/python${PYV}-v${NPY_OLD}:${PYTHONPATH}"
+          
+          export PYTORCH_BUILD_VERSION="${PYTORCH_VERSION}"
+          export PYTORCH_BUILD_NUMBER=0
+          export TORCH_NVCC_FLAGS="-Wno-deprecated-gpu-targets -Xfatbin -compress-all"
+          export TORCH_CUDA_ARCH_LIST
+          export BLAS=OpenBLAS             # Require OpenBLAS for linear algebra. Our OpenBLAS is built against pthreads and not OpenMP.
+          export ATEN_THREADING=TBB        # Require TBB rather than OpenMP because OpenMP forks badly.
+          export MKL_THREADING=TBB         # Require TBB rather than OpenMP because OpenMP forks badly.
+          export MKLDNN_CPU_RUNTIME=TBB    # Require TBB rather than OpenMP because OpenMP forks badly.
+          export MKLDNN_ARCH_OPT_FLAGS="-msse2"  # Require portable MKLDNN (SSE2, defaults to SSE4.1)
+          export DNNL_ARCH_OPT_FLAGS="-msse2"    # Require portable MKLDNN (SSE2, defaults to SSE4.1)
+          export USE_TBB=1                 # Require TBB
+          export USE_OPENMP=0              # Demand not to use OpenMP (due to fork-unsafeness of libgomp, the default implementation of OpenMP).
+          export USE_MKLDNN=1              # Demand to use MKLDNN
+          export USE_CUDNN=1               # Demand to use cuDNN
+          export USE_STATIC_CUDNN=0        # Want dynamic link to avoid wasting disk space
+          export USE_SYSTEM_NCCL=1         # Compile using system NCCL
+          export USE_STATIC_NCCL=0         # Want dynamic link to avoid wasting disk space
+          export USE_DISTRIBUTED=1         # Want distributed backends enabled
+          export USE_MPI=1                 # Want (Open)MPI  distributed backend
+          export USE_GLOO=1                # Want Gloo       distributed backend
+          export USE_TENSORPIPE=1          # Want TensorPipe distributed backend
+          export USE_IBVERBS=1             # Want ibverbs
+          export USE_ZSTD=1                # Want Zstd
+          export USE_LMDB=1                # Want LMDB
+          export USE_TENSORRT=1            # Want TensorRT
+          export BUILD_CUSTOM_PROTOBUF=1   # Enable building custom protobuf.
+          
+          export CUDA_HOME="$TK/$CUDA"                                    # The standard way to signal the CUDA Toolkit's location.
+          export CUDNN_ROOT="$CUDNN_PREFIX/${CUDA}-v${CUDNN_VERSION}"     # Wanted by FindCUDNN.cmake
+          export NCCL_VERSION                                             # Wanted by FindNCCL.cmake, forces correct version check.
+          export NCCL_ROOT="$NCCL_PREFIX/${CUDA}-v${NCCL_VERSION}"        # Wanted by FindNCCL.cmake
+          export NCCL_LIB_DIR="${NCCL_ROOT}/lib"                          # Wanted by FindNCCL.cmake
+          export NCCL_INCLUDE_DIR="${NCCL_ROOT}/include"                  # Wanted by FindNCCL.cmake
+          export TENSORRT_ROOT="$TRT_PREFIX/cuda${CUDA}-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  # Wanted by cmake/public/cuda.cmake
+          export TENSORRT_INCLUDE_DIR="${TENSORRT_ROOT}/include"          # Wanted by cmake/public/cuda.cmake
+          export LMDB_DIR="$LMDB_PREFIX/$LMDB_VERSION"                    # Wanted by FindLMDB.cmake
+          export MAGMA_HOME="$MAGMA_PREFIX/${CUDA}-v${MAGMA_VERSION}"     # Wanted by FindMAGMA.cmake
+          # A small difficulty appears with PyTorch 1.9.0 re: OpenBLAS. PyTorch 1.9.0 performs
+          # detection for BLAS twice, using different logic, and one path reuses $OpenBLAS_HOME
+          # while the other uses a different strategy that involves looking at hardcoded paths,
+          # $CPATH, $LIBRARY_PATH *and* $LD_LIBRARY_PATH, even though the latter variable
+          # normally serves a different purpose. But we are obliged to use this later variable
+          # because otherwise an -L flag is not supplied to the linker, and so our linker hack
+          # to inject -rpath is not activated. So we therefore indicate the location of OpenBLAS
+          # through all of $OpenBLAS_HOME, $CPATH and $LD_LIBRARY_PATH but *not* $LIBRARY_PATH,
+          # however strange. This does not appear to hurt PyTorch 1.8.x.
+          export OpenBLAS_HOME="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"       # Wanted by FindOpenBLAS.cmake (PyTorch 1.8.x)
+          export LD_LIBRARY_PATH="$OPENBLAS_PREFIX/$OPENBLAS_VERSION/lib:$LD_LIBRARY_PATH" # Wanted by FindBLAS.cmake     (PyTorch 1.9.x). We must not use LIBRARY_PATH in order to leverage the linker hack.
+          export CPATH="$OPENBLAS_PREFIX/$OPENBLAS_VERSION/include"       # Wanted by FindBLAS.cmake     (PyTorch 1.9.x)
+          export PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/bin:$PATH"           # Sufficient to discover OpenMPI
+          
+          # Propagate additional variables into CMake's invocation
+          sed -i -e "s:'MKLDNN_CPU_RUNTIME',:'MKLDNN_CPU_RUNTIME', 'MKLDNN_ARCH_OPT_FLAGS', 'DNNL_ARCH_OPT_FLAGS', 'TENSORRT_ROOT', 'SOURCE_DATE_EPOCH',:g" tools/setup_helpers/cmake.py
+          
+          # Install wheel first (becauses the requirements need it), then reqs, then build PyTorch.
+          python -m pip install wheel
+          python -m pip install -r requirements.txt
+          time python setup.py bdist_wheel
+          
+          # Repair patch to tools/setup_helpers/cmake.py
+          git checkout -- tools/setup_helpers/cmake.py
+          
+          # Expand the wheel into the destination.
+          mkdir -p "${PYTORCH_PREFIX}/python${PYV}-cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}"
+          unzip -d "${PYTORCH_PREFIX}/python${PYV}-cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}" dist/torch-*.whl
+          rm -Rf dist
+          
+          # Leave
+          deactivate
+          rm -Rf venv
+        )
+      done
+      cd ..
+      rm -Rf "PyTorch-cuda${CUDA}"
+    ) &
   done
+  wait
 done
 rm -Rf PyTorch
 
