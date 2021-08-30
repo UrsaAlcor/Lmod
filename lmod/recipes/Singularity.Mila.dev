@@ -125,9 +125,10 @@ TRT_VERSION_FULL=7.2.3.4
 TRT_VERSION=${TRT_VERSION_FULL%.*}  # Strip sub-patch number
 TRT_VERSION=${TRT_VERSION%.*}       # Strip patch number
 TRT_PREFIX=/cvmfs/ai.mila.quebec/apps/x86_64/common/tensorrt
-if [ -f TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CUDNN_VERSION}.tar.gz -a \
-     -f TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn${CUDNN_VERSION}.tar.gz -a \
-     -f TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn${CUDNN_VERSION}.tar.gz ]; then
+if [  ! -d "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" -o \
+      ! -d "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" -o \
+      ! -d "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" -o \
+      ! -d "$TRT_PREFIX/cuda11.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" ]; then
   rm -Rf   "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
   rm -Rf   "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
   rm -Rf   "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
@@ -135,7 +136,6 @@ if [ -f TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CU
   mkdir -p "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
   mkdir -p "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
   mkdir -p "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
-  ln    -s "cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  "$TRT_PREFIX/cuda11.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
   tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
   tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.0.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
   tar --strip-components=1 -xf TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn${CUDNN_VERSION}.tar.gz -C "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}" &
@@ -143,6 +143,7 @@ if [ -f TensorRT-${TRT_VERSION_FULL}.Ubuntu-18.04.x86_64-gnu.cuda-10.2.cudnn${CU
   ln    -s "$TK/10.2/lib64/libnvrtc.so.10.2" "$TRT_PREFIX/cuda10.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.10.2"  # Required because libnvinfer.so.7 depends on libnvrtc.so.10.2
   ln    -s "$TK/11.0/lib64/libnvrtc.so.11.0" "$TRT_PREFIX/cuda11.0-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.11.0"  # Required because libnvinfer.so.7 depends on libnvrtc.so.11.0
   ln    -s "$TK/11.1/lib64/libnvrtc.so.11.1" "$TRT_PREFIX/cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}/lib/libnvrtc.so.11.1"  # Required because libnvinfer.so.7 depends on libnvrtc.so.11.1
+  ln    -s "cuda11.1-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"  "$TRT_PREFIX/cuda11.2-cudnn${CUDNN_VERSION}-v${TRT_VERSION}"
   rm TensorRT-*
 fi
 
