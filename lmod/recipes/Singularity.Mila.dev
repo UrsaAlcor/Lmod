@@ -533,32 +533,47 @@ rm -Rf MAGMA
 #
 PYTORCH_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/debian/pytorch"
 rm -Rf PyTorch PyTorch-* "$PYTORCH_PREFIX" log-*.txt
-git clone --recursive https://github.com/pytorch/pytorch.git PyTorch
 for PYTORCH_VERSION in 1.8.2 1.9.0; do
-  cd PyTorch
-  git clean -xdff
-  git checkout v${PYTORCH_VERSION}
-  git submodule sync --recursive
-  git submodule update --init --recursive
-  git submodule sync --recursive
-  git submodule update --init --recursive
-  git clean -xdff
-  cd ..
   for CUDA in 10.2 11.0 11.1 11.2; do
     case "$CUDA" in
       10.2 )     TORCH_CUDA_ARCH_LIST="3.7;5.2;7.0;7.5" ;;
       11.0 )     TORCH_CUDA_ARCH_LIST="3.7;5.2;7.0;7.5;8.0" ;;
       11.[^0] )  TORCH_CUDA_ARCH_LIST="3.7;5.2;7.0;7.5;8.0;8.6" ;;
     esac
-    (
-      rm -Rf        "PyTorch-cuda${CUDA}"
-      cp -a PyTorch "PyTorch-cuda${CUDA}"
-      cd            "PyTorch-cuda${CUDA}"
-      for PYV in 3.6 3.7 3.8; do
-        PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
+    for PYV in 3.6 3.7 3.8; do
+      PYVS="$(printf '%s\n' "$PYV" | sed 's/\.//g')"
+      PYTORCH_PREFIX_SUBDIR="python${PYV}-cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}"
+      if [ ! -d "${PYTORCH_PREFIX}/${PYTORCH_PREFIX_SUBDIR}" ]; then
+        #
+        # Preparatory Git clones and private copies.
+        #
+        if [ ! -d PyTorch ]; then
+          mkdir PyTorch  # Keep empty, this will become a bind-mount-point!
+        fi
+        if [ ! -d PyTorch-nocheckout ]; then
+          git clone --no-checkout https://github.com/pytorch/pytorch.git PyTorch-nocheckout
+        fi
+        if [ ! -d PyTorch-v${PYTORCH_VERSION} ]; then
+          cp -a PyTorch-nocheckout "PyTorch-v${PYTORCH_VERSION}"
+          cd "PyTorch-v${PYTORCH_VERSION}"
+          git checkout "v${PYTORCH_VERSION}"
+          git submodule update --init --recursive
+          cd ..
+        fi
+        cp -a "PyTorch-v${PYTORCH_VERSION}" "PyTorch-${PYTORCH_PREFIX_SUBDIR}"
+        
+        #
+        # Create persistent mount namespace, accessible by nsenter at
+        #
+        #     PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns
+        #
+        # Then bind-mount it. Next, create a virtualenv inside, activate it,
+        # then initiate build.
+        #
         (
-          python${PYV} -m venv venv
-          . venv/bin/activate
+          touch           "$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns"
+          unshare --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" true
+          nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" mount --bind "$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}" "$(pwd)/PyTorch"
           
           export PYTHONPATH="${SPY_PREFIX}/python${PYV}-v${SPY_OLD}:${PYTHONPATH}"
           export PYTHONPATH="${NPY_PREFIX}/python${PYV}-v${NPY_OLD}:${PYTHONPATH}"
@@ -614,35 +629,40 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
           export CPATH="$OPENBLAS_PREFIX/$OPENBLAS_VERSION/include"       # Wanted by FindBLAS.cmake     (PyTorch 1.9.x)
           export PATH="/usr/mpi/gcc/openmpi-4.1.0rc5/bin:$PATH"           # Sufficient to discover OpenMPI
           
+          
+          #
+          # Action within the bind-mount.
+          #
           # Propagate additional variables into CMake's invocation
-          sed -i -e "s:'MKLDNN_CPU_RUNTIME',:'MKLDNN_CPU_RUNTIME', 'MKLDNN_ARCH_OPT_FLAGS', 'DNNL_ARCH_OPT_FLAGS', 'TENSORRT_ROOT', 'SOURCE_DATE_EPOCH',:g" tools/setup_helpers/cmake.py
-          
-          # Install wheel first (becauses the requirements need it), then reqs, then build PyTorch.
-          python -m pip install wheel
-          python -m pip install -r requirements.txt
-          LD_LUA_LOGNAME="/opt/log-python${PYV}-cuda${CUDA}-v${PYTORCH_VERSION}.txt" \
-          python setup.py bdist_wheel
-          
-          # Repair patch to tools/setup_helpers/cmake.py
-          git checkout -- tools/setup_helpers/cmake.py
+          nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
+              sed -i -e "s:'MKLDNN_CPU_RUNTIME',:'MKLDNN_CPU_RUNTIME', 'MKLDNN_ARCH_OPT_FLAGS', 'DNNL_ARCH_OPT_FLAGS', 'TENSORRT_ROOT', 'SOURCE_DATE_EPOCH',:g" /opt/PyTorch/tools/setup_helpers/cmake.py
+          # Create env, install wheel first (becauses the requirements need it),
+          # then reqs, then build PyTorch.
+          nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
+              python${PYV} -m venv /opt/PyTorch/venv
+          nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
+              bash -c ". /opt/PyTorch/venv/bin/activate; python -m pip install wheel"
+          nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
+              bash -c ". /opt/PyTorch/venv/bin/activate; python -m pip install -r /opt/PyTorch/requirements.txt"
+          nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
+              env MAX_JOBS=1 LD_LUA_LOGNAME="/opt/log-python${PYV}-cuda${CUDA}-v${PYTORCH_VERSION}.txt" \
+              bash -c ". /opt/PyTorch/venv/bin/activate; cd /opt/PyTorch; python setup.py bdist_wheel"
           
           # Expand the wheel into the destination.
-          mkdir -p "${PYTORCH_PREFIX}/python${PYV}-cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}"
-          unzip -d "${PYTORCH_PREFIX}/python${PYV}-cuda${CUDA}-cudnn${CUDNN_VERSION}-v${PYTORCH_VERSION}" dist/torch-*.whl
-          rm -Rf dist
+          mkdir -p "${PYTORCH_PREFIX}/${PYTORCH_PREFIX_SUBDIR}"
+          unzip -d "${PYTORCH_PREFIX}/${PYTORCH_PREFIX_SUBDIR}" "PyTorch-${PYTORCH_PREFIX_SUBDIR}"/dist/torch-*.whl
           
           # Leave
-          deactivate
-          rm -Rf venv
-        )
-      done
-      cd ..
-      rm -Rf "PyTorch-cuda${CUDA}"
-    ) &
+          umount "PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns"
+          rm -f  "PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns"
+          rm -Rf "PyTorch-${PYTORCH_PREFIX_SUBDIR}"
+        ) &
+      fi
+    done
   done
-  wait
 done
-rm -Rf PyTorch
+wait
+rm -Rf PyTorch PyTorch-*
 
 
 #
