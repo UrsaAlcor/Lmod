@@ -18,6 +18,7 @@ Skip injection logic.
 LD_LUA_BACKEND = os.getenv('LD_LUA_BACKEND') or 'x86_64-linux-gnu-ld.orig'
 LD_LUA_BYPASS  = os.getenv('LD_LUA_BYPASS')  or ''
 LD_LUA_EXTRA   = os.getenv('LD_LUA_EXTRA')   or ''
+LD_LUA_LOGNAME = os.getenv('LD_LUA_LOGNAME')
 if LD_LUA_BYPASS ~= '' and LD_LUA_BYPASS ~= '0' then
   unistd.execp(LD_LUA_BACKEND, arg)
 end
@@ -169,4 +170,10 @@ end
 
 
 -- Execute linker.
+if LD_LUA_LOGNAME then
+  local s = LD_LUA_BACKEND..' '..table.concat(arg, ' ')..'\n'
+  local f <close> = io.open(LD_LUA_LOGNAME, 'a+')
+  f:write(s) -- In one atomic write, append.
+  f:flush()
+end
 unistd.execp(LD_LUA_BACKEND, arg)
