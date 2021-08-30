@@ -56,7 +56,7 @@ cd /opt
 # - Remove limits on compiler caching
 #
 git config --global advice.detachedHead false
-NJ=${NJ:-128}
+NJ=${NJ:-$(nproc)}
 export SOURCE_DATE_EPOCH=1629769335
 ccache -M 0   # Set unlimited size  of compiler cache
 ccache -F 0   # Set unlimited files in compiler cache
