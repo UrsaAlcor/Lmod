@@ -530,6 +530,7 @@ rm -Rf MAGMA
 # PyTorch
 #
 PYTORCH_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/debian/pytorch"
+rm -Rf PyTorch PyTorch-* "$PYTORCH_PREFIX" log-*.txt
 git clone --recursive https://github.com/pytorch/pytorch.git PyTorch
 for PYTORCH_VERSION in 1.8.2 1.9.0; do
   cd PyTorch
@@ -617,6 +618,7 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
           # Install wheel first (becauses the requirements need it), then reqs, then build PyTorch.
           python -m pip install wheel
           python -m pip install -r requirements.txt
+          LD_LUA_LOGNAME="/opt/log-python${PYV}-cuda${CUDA}-v${PYTORCH_VERSION}.txt" \
           python setup.py bdist_wheel
           
           # Repair patch to tools/setup_helpers/cmake.py
