@@ -6,7 +6,7 @@ explicitrpaths = {}
 rpaths         = {}
 libpaths       = {}
 libs           = {}
-static         = false
+static         = {false}
 output         = nil
 soname         = nil
 i              = 1
@@ -38,17 +38,21 @@ while arg[i] do
     table.insert(libpaths, (arg[i]:sub(3):gsub('/+','/')))
   elseif arg[i]          == '-l' then
     i=i+1
-    if not static and arg[i] then
+    if not static[1] and arg[i] then
       table.insert(libs, arg[i])
     end
   elseif arg[i]:sub(1,2) == '-l' then
-    if not static then
+    if not static[1] then
       table.insert(libs, arg[i]:sub(3))
     end
   elseif arg[i] == '-Bstatic' then
-    static=true
+    static[1]=true
   elseif arg[i] == '-Bdynamic' then
-    static=false
+    static[1]=false
+  elseif arg[i] == '--push-state' then
+    table.insert(static, 1, static[1])
+  elseif arg[i] == '--pop-state' then
+    table.remove(static, 1)
   elseif arg[i] == '-dynamic-linker' then
     i=i+1 -- Ignore the dynamic linker
   elseif arg[i] == '-rpath' then
