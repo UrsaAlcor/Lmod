@@ -341,7 +341,6 @@ NPY_OLD=1.19.5   # Used as compatibility target in further recipes!
 # We deliberately build against the oldest Numpy from above.
 #
 SPY_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/scipy"
-git clone https://github.com/scipy/scipy.git Scipy
 for SPY in 1.5.4 1.6.3 1.7.1; do
   if [ "$SPY" = 1.5.4 ]; then PYV_LIST="3.6 3.7 3.8"
   else                        PYV_LIST="    3.7 3.8"
