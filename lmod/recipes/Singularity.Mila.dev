@@ -102,19 +102,21 @@ CUDNN_VERSION_FULL=8.1.1.33
 CUDNN_VERSION=${CUDNN_VERSION_FULL%.*}  # Strip sub-patch number
 CUDNN_VERSION=${CUDNN_VERSION%.*}       # Strip patch number
 CUDNN_PREFIX=/cvmfs/ai.mila.quebec/apps/x86_64/common/cudnn
-if [ -f cudnn-10.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -a \
-     -f cudnn-11.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz ]; then
+if [  ! -d "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}" -o \
+      ! -d "$CUDNN_PREFIX/11.0-v${CUDNN_VERSION}" -o \
+      ! -d "$CUDNN_PREFIX/11.1-v${CUDNN_VERSION}" -o \
+      ! -d "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}" ]; then
   rm -Rf   "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}"
   rm -Rf   "$CUDNN_PREFIX/11.0-v${CUDNN_VERSION}"
   rm -Rf   "$CUDNN_PREFIX/11.1-v${CUDNN_VERSION}"
   rm -Rf   "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}"
   mkdir -p "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}"
   mkdir -p "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}"
-  ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.0-v${CUDNN_VERSION}"
-  ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.1-v${CUDNN_VERSION}"
   tar --strip-components=1 -xf cudnn-10.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/10.2-v${CUDNN_VERSION}" &
   tar --strip-components=1 -xf cudnn-11.2-linux-x64-v${CUDNN_VERSION_FULL}.tgz -C "$CUDNN_PREFIX/11.2-v${CUDNN_VERSION}" &
   wait       # Don't erase the installers before they ran!
+  ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.0-v${CUDNN_VERSION}"
+  ln -s 11.2-v${CUDNN_VERSION} "$CUDNN_PREFIX/11.1-v${CUDNN_VERSION}"
   rm cudnn-*
 fi
 
