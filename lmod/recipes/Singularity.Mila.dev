@@ -37,27 +37,51 @@ lmod/recipes/ld.lua                                             /usr/bin/x86_64-
 
 
 %post
+#
+# Update the system to latest, including the newest CMake from Kitware.
+#
 apt-get update  -y
 apt-get upgrade -y
 apt-get install -y python3.6 python3.6-dev python3.6-venv \
                    python3.7 python3.7-dev python3.7-venv \
                    python3.8 python3.8-dev python3.8-venv \
                    python3-setuptools gfortran \
-                   build-essential ccache cmake yasm nasm \
-                   zip unzip patchelf wget git graphviz \
+                   build-essential ccache yasm nasm \
+                   zip unzip patchelf gpg wget git graphviz \
                    libnuma-dev
+
+# CMake from Kitware repos
+wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ bionic main' | tee /etc/apt/sources.list.d/kitware.list >/dev/null
+apt-get update  -y
+rm /usr/share/keyrings/kitware-archive-keyring.gpg
+apt-get install -y kitware-archive-keyring
+apt-get install -y cmake
+
+# Move to build directory.
 cd /opt
+
 
 #
 # - Silence extremely irritating Git "help" message
 # - Multi-core control.
-# - Increase reproducibility by exporting SOURCE_DATE_EPOCH variable with
-#   approximately current timestamp.
+# - Increase reproducibility by:
+#    - Setting LC_ALL to C.UTF-8, affecting things like collation order.
+#    - Setting TZ to UTC, like PyTorch's build scripts do.
+#    - Setting Git's core.abbrev to fixed 12 to avoid accidentally depending on size of repository.
+#    - Exporting SOURCE_DATE_EPOCH variable with approximately current timestamp
+#    - Using rpaths relative to $ORIGIN whenever possible.
+#    - Setting PYTHONHASHSEED to 0, to make Python 3.6 dictionaries deterministic.
 # - Remove limits on compiler caching
 #
-git config --global advice.detachedHead false
 NJ=${NJ:-$(nproc)}
-export SOURCE_DATE_EPOCH=1629769335
+git config --global core.abbrev         12
+git config --global advice.detachedHead false
+export LC_ALL=C.UTF-8
+export TZ=UTC
+export SOURCE_DATE_EPOCH=$(cd /cvmfs/config.mila.quebec; git log -1 --pretty=%ct)
+export CMAKE_BUILD_RPATH_USE_ORIGIN=ON
+export PYTHONHASHSEED=0
 ccache -M 0   # Set unlimited size  of compiler cache
 ccache -F 0   # Set unlimited files in compiler cache
 ccache -z     # Zero  statistics    of compiler cache
@@ -633,9 +657,15 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
           #
           # Action within the bind-mount.
           #
-          # Propagate additional variables into CMake's invocation
+          # - Propagate additional variables into CMake's invocation
+          # - Make timestamp deterministic
           nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
               sed -i -e "s:'MKLDNN_CPU_RUNTIME',:'MKLDNN_CPU_RUNTIME', 'MKLDNN_ARCH_OPT_FLAGS', 'DNNL_ARCH_OPT_FLAGS', 'TENSORRT_ROOT', 'SOURCE_DATE_EPOCH',:g" /opt/PyTorch/tools/setup_helpers/cmake.py
+          nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
+              sed -i -e "s:COMMAND date:COMMAND date -d @${SOURCE_DATE_EPOCH} -u:g" \
+                        /opt/PyTorch/aten/src/ATen/cpu/tbb/CMakeLists.txt
+          nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
+              sed -i -e "s:date -u:date -d @${SOURCE_DATE_EPOCH} -u:g" /opt/PyTorch/third_party/tbb/build/version_info_linux.sh
           # Create env, install wheel first (becauses the requirements need it),
           # then reqs, then build PyTorch.
           nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
@@ -645,7 +675,7 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
           nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
               bash -c ". /opt/PyTorch/venv/bin/activate; python -m pip install -r /opt/PyTorch/requirements.txt"
           nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
-              env MAX_JOBS=1 LD_LUA_LOGNAME="/opt/log-python${PYV}-cuda${CUDA}-v${PYTORCH_VERSION}.txt" \
+              env MAX_JOBS=4 LD_LUA_LOGNAME="/opt/log-python${PYV}-cuda${CUDA}-v${PYTORCH_VERSION}.txt" \
               bash -c ". /opt/PyTorch/venv/bin/activate; cd /opt/PyTorch; python setup.py bdist_wheel"
           
           # Expand the wheel into the destination.
