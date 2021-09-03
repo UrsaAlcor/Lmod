@@ -25,6 +25,51 @@ end
 
 
 --[[
+Utilities to manipulate paths.
+--]]
+
+
+--[[
+Canonicalize paths according to universal rules of path resolution.
+--]]
+function canonicalize(v)
+  --[[
+  In the following gsubs, the following patterns are to be understood as follows:
+    - '%f[\0/]':  "match the empty string before a / or at the end of the string,
+                   except in an empty string"
+    - '%f[\0/]/': "match any / except the leading /"
+                  
+                  This works because the beginning of a string is treated as \0
+                  for the purpose of a preceding-character in frontier sets, and
+                  thus a frontier set including \0 cannot match at the beginning
+                  of a string.
+                  
+                  Next, including / in the frontier set allows it
+                  to match the empty string before a /.
+                  
+                  Last, we eat that / by requiring it immediately after the
+                  frontier set.
+  
+  The order in which these gsubs are applied matters due to subtle
+  interactions between the rules.
+  --]]
+  v = v:gsub('\0.*$', '')           -- (0)   Embedded NUL bytes illegal inside paths.
+  v = v:gsub('/%.%f[\0/]','/')      -- (1)   Delete pointless '/.' segments.
+  v = v:gsub('/%.%.%f[\0/]', '\0')  -- (2.1) Replace all '/..' segments by NUL bytes.
+  v = v:gsub('^[\0/]+', '/')        -- (2.2) Reduce prefix sequences consisting only
+                                    --       of '/' and NUL bytes (ex-'/..' segments)
+                                    --       with a single '/'. Any such prefix must
+                                    --       be an absolute path that refers to root.
+                                    --       Relative paths are unaffected, since by
+                                    --       definition they cannot start with a '/'.
+  v = v:gsub('\0', '/..')           -- (2.3) Restore non-leading '/..' segments.
+  v = v:gsub('/+','/')              -- (3) Delete duplicate /
+  v = v:gsub('%f[\0/]/+$','')       -- (4) Delete trailing  / but not leading /
+  return v
+end
+
+
+--[[
 Search through arguments list and collect libraries and directories for which
 rpath injection may be required.
 --]]
@@ -32,10 +77,10 @@ while arg[i] do
   if     arg[i]          == '-L' then
     i=i+1
     if arg[i] then
-      table.insert(libpaths, (arg[i]:gsub('/+','/')));
+      table.insert(libpaths, canonicalize(arg[i]));
     end
   elseif arg[i]:sub(1,3) == '-L/' then
-    table.insert(libpaths, (arg[i]:sub(3):gsub('/+','/')))
+    table.insert(libpaths, canonicalize(arg[i]:sub(3)))
   elseif arg[i]          == '-l' then
     i=i+1
     if not static[1] and arg[i] then
@@ -57,11 +102,8 @@ while arg[i] do
     i=i+1 -- Ignore the dynamic linker
   elseif arg[i] == '-rpath' then
     i=i+1 -- Explicit rpath, record for deduplication
-    if arg[i] then
-      local v = arg[i]
-      v = v:gsub('/+','/')
-      v = v:gsub('%f[\0/]/+$','')
-      explicitrpaths[v] = true
+    for v in arg[i]:gmatch('%f[^:\0][^:]+') do -- The -rpath arg can contain multiple paths
+      explicitrpaths[canonicalize(v)] = true
     end
   elseif arg[i] == '-o' then
     i=i+1
@@ -75,9 +117,9 @@ while arg[i] do
     i=i+1
     soname = arg[i]
   elseif arg[i]:match('[^/]+%.so[^/]*$') then
-    bn = arg[i]:match('[^/]+%.so[^/]*$')
+    local bn = arg[i]:match('[^/]+%.so[^/]*$')
     if arg[i] ~= bn then  -- Not just a raw library name
-      table.insert(rpaths, arg[i]:sub(1, -1-#bn))
+      table.insert(rpaths, canonicalize(arg[i]:sub(1, -1-#bn)))
     end
   end
   i = i+1 -- Move to next argument
@@ -125,9 +167,8 @@ We normalize paths and check against user-given explicit rpaths to avoid
 pointless duplicates.
 --]]
 for k,v in pairs(foundlist) do
-  v = v:gsub('/+','/')
-  v = v:gsub('%f[\0/]/+$','')
-  if not explicitrpaths[v] then
+  v = canonicalize(v)
+  if v~='' and not explicitrpaths[v] then
     if v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lz4/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lzma/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/zstd/') or
@@ -163,7 +204,7 @@ if soname and soname:match('^libfftw3f?_.+%.so%.%d+$') then
   while arg[i] do
     if arg[i] == '-rpath' and
        arg[i+1]           and
-       arg[i+1]:match('^/cvmfs/ai.mila.quebec/.+/fftw/+[^/]+/+lib') then
+       arg[i+1]:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/fftw/+[^/]+/+lib') then
       arg[i+1] = '$ORIGIN'
       i = i+2
     else
@@ -173,7 +214,10 @@ if soname and soname:match('^libfftw3f?_.+%.so%.%d+$') then
 end
 
 
--- Execute linker.
+--[[
+Execute linker.
+If logging enabled, append the final link line into the logfile.
+--]]
 if LD_LUA_LOGNAME then
   local s = LD_LUA_BACKEND..' '..table.concat(arg, ' ')..'\n'
   local f <close> = io.open(LD_LUA_LOGNAME, 'a+')
