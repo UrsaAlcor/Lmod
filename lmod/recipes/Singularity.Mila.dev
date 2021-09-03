@@ -678,6 +678,7 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
           unzip -d "${PYTORCH_PREFIX}/${PYTORCH_PREFIX_SUBDIR}" "PyTorch-${PYTORCH_PREFIX_SUBDIR}"/dist/torch-*.whl
           
           # Leave
+          nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" umount /opt/PyTorch
           umount "PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns"
           rm -Rf "PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
                  "PyTorch-${PYTORCH_PREFIX_SUBDIR}"
