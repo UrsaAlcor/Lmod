@@ -35,9 +35,6 @@ lmod/recipes/TensorRT-7.2.3.4.Ubuntu-18.04.x86_64-gnu.cuda-11.1.cudnn8.1.tar.gz 
 # Linker hack
 lmod/recipes/ld.lua                                             /usr/bin/x86_64-linux-gnu-ld.lua
 
-# Assorted patches
-lmod/recipes/peachpy.patch                                      /opt/
-
 
 %post
 #
@@ -49,19 +46,9 @@ apt-get install -y python3.6 python3.6-dev python3.6-venv \
                    python3.7 python3.7-dev python3.7-venv \
                    python3.8 python3.8-dev python3.8-venv \
                    python3-setuptools gfortran \
-                   build-essential ccache yasm nasm \
+                   build-essential ccache cmake yasm nasm \
                    zip unzip patchelf gpg wget git graphviz \
                    libnuma-dev
-
-# CMake from Kitware repos
-wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ bionic main' | tee /etc/apt/sources.list.d/kitware.list >/dev/null
-apt-get update  -y
-rm /usr/share/keyrings/kitware-archive-keyring.gpg
-apt-get install -y kitware-archive-keyring
-apt-get install -y cmake
-
-# Move to build directory.
 cd /opt
 
 
@@ -73,39 +60,15 @@ cd /opt
 #    - Setting TZ to UTC, like PyTorch's build scripts do.
 #    - Setting Git's core.abbrev to fixed 12 to avoid accidentally depending on size of repository.
 #    - Exporting SOURCE_DATE_EPOCH variable with approximately current timestamp
-#    - Using rpaths relative to $ORIGIN whenever possible.
 #    - Setting PYTHONHASHSEED to 42, to make Python 3.6 dictionaries deterministic.
-#    - Constructing a CMake snippet that makes static archive construction deterministic.
-#      (The contrived construction is to allow Singularity to interpret it).
 # - Remove limits on compiler caching
 #
 NJ=${NJ:-$(nproc)}
-HACK_CMAKE_DETERMINISM_INJECT=''
-HACK_CMAKE_DETERMINISM_INJECT="$HACK_CMAKE_DETERMINISM_INJECT"'SET(CMAKE_ASM_ARCHIVE_CREATE "<CMAKE_AR>     -crD <TARGET> <LINK_FLAGS> <OBJECTS>")\n'
-HACK_CMAKE_DETERMINISM_INJECT="$HACK_CMAKE_DETERMINISM_INJECT"'SET(CMAKE_ASM_ARCHIVE_APPEND "<CMAKE_AR>     -rD  <TARGET> <LINK_FLAGS> <OBJECTS>")\n'
-HACK_CMAKE_DETERMINISM_INJECT="$HACK_CMAKE_DETERMINISM_INJECT"'SET(CMAKE_ASM_ARCHIVE_FINISH "<CMAKE_RANLIB> -D   <TARGET>")\n'
-HACK_CMAKE_DETERMINISM_INJECT="$HACK_CMAKE_DETERMINISM_INJECT"'SET(CMAKE_C_ARCHIVE_CREATE   "<CMAKE_AR>     -crD <TARGET> <LINK_FLAGS> <OBJECTS>")\n'
-HACK_CMAKE_DETERMINISM_INJECT="$HACK_CMAKE_DETERMINISM_INJECT"'SET(CMAKE_C_ARCHIVE_APPEND   "<CMAKE_AR>     -rD  <TARGET> <LINK_FLAGS> <OBJECTS>")\n'
-HACK_CMAKE_DETERMINISM_INJECT="$HACK_CMAKE_DETERMINISM_INJECT"'SET(CMAKE_C_ARCHIVE_FINISH   "<CMAKE_RANLIB> -D   <TARGET>")\n'
-HACK_CMAKE_DETERMINISM_INJECT="$HACK_CMAKE_DETERMINISM_INJECT"'SET(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR>     -crD <TARGET> <LINK_FLAGS> <OBJECTS>")\n'
-HACK_CMAKE_DETERMINISM_INJECT="$HACK_CMAKE_DETERMINISM_INJECT"'SET(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR>     -rD  <TARGET> <LINK_FLAGS> <OBJECTS>")\n'
-HACK_CMAKE_DETERMINISM_INJECT="$HACK_CMAKE_DETERMINISM_INJECT"'SET(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> -D   <TARGET>")\n'
 git config --global core.abbrev         12
 git config --global advice.detachedHead false
 export LC_ALL=C.UTF-8
 export TZ=UTC
 export SOURCE_DATE_EPOCH=$(cd /cvmfs/config.mila.quebec; git log -1 --pretty=%ct)
-export CMAKE_BUILD_RPATH_USE_ORIGIN=ON
-export CMAKE_CUDA_FLAGS="-U__FILE__ -D__FILE__=\"HIDDEN_FOR_NVCC_DETERMINISM\""
-export CMAKE_ASM_ARCHIVE_CREATE="<CMAKE_AR>     -crD <TARGET> <LINK_FLAGS> <OBJECTS>"
-export CMAKE_ASM_ARCHIVE_APPEND="<CMAKE_AR>     -rD  <TARGET> <LINK_FLAGS> <OBJECTS>"
-export CMAKE_ASM_ARCHIVE_FINISH="<CMAKE_RANLIB> -D   <TARGET>"
-export CMAKE_C_ARCHIVE_CREATE="<CMAKE_AR>     -crD <TARGET> <LINK_FLAGS> <OBJECTS>"
-export CMAKE_C_ARCHIVE_APPEND="<CMAKE_AR>     -rD  <TARGET> <LINK_FLAGS> <OBJECTS>"
-export CMAKE_C_ARCHIVE_FINISH="<CMAKE_RANLIB> -D   <TARGET>"
-export CMAKE_CXX_ARCHIVE_CREATE="<CMAKE_AR>     -crD <TARGET> <LINK_FLAGS> <OBJECTS>"
-export CMAKE_CXX_ARCHIVE_APPEND="<CMAKE_AR>     -rD  <TARGET> <LINK_FLAGS> <OBJECTS>"
-export CMAKE_CXX_ARCHIVE_FINISH="<CMAKE_RANLIB> -D   <TARGET>"
 export PYTHONHASHSEED=42
 ccache -M 0   # Set unlimited size  of compiler cache
 ccache -F 0   # Set unlimited files in compiler cache
@@ -613,16 +576,6 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
         
         
         #
-        # Apply a reproducibility patch to peachpy.
-        # Reference:
-        #     https://github.com/Maratyszcza/PeachPy/pull/108/commits/01fca1386b9f8660e3313732309961ce7129f52a
-        #
-        cd "PyTorch-${PYTORCH_PREFIX_SUBDIR}/third_party/python-peachpy"
-        patch -p1 < /opt/peachpy.patch
-        cd /opt
-        
-        
-        #
         # Create persistent mount namespace, accessible by nsenter at
         #
         #     PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns
@@ -694,8 +647,7 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
           # Action within the bind-mount.
           #
           # - Propagate additional variables into CMake's invocation
-          # - Make timestamp and archives deterministic
-          # - Censor __FILE__ in code compiled by NVCC
+          # - Make timestamp deterministic
           #
           sed -i -e "s:'MKLDNN_CPU_RUNTIME',:'MKLDNN_CPU_RUNTIME', 'MKLDNN_ARCH_OPT_FLAGS', 'DNNL_ARCH_OPT_FLAGS', 'TENSORRT_ROOT', 'SOURCE_DATE_EPOCH',:g" \
               /opt/PyTorch-${PYTORCH_PREFIX_SUBDIR}/tools/setup_helpers/cmake.py
@@ -703,18 +655,11 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
               /opt/PyTorch-${PYTORCH_PREFIX_SUBDIR}/aten/src/ATen/cpu/tbb/CMakeLists.txt
           sed -i -e "s:date -u:date -d @${SOURCE_DATE_EPOCH} -u:g" \
               /opt/PyTorch-${PYTORCH_PREFIX_SUBDIR}/third_party/tbb/build/version_info_linux.sh
-          #nsenter --mount="$(pwd)/PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
-          #    sed -i -e "s:project([^)]*):&\n$HACK_CMAKE_DETERMINISM_INJECT:gI" \
-          #              /opt/PyTorch/third_party/NNPACK/CMakeLists.txt \
-          #              /opt/PyTorch/third_party/gloo/CMakeLists.txt
-          sed -i -e 's:#pragma once:&\n#ifdef __NVCC__\n# undef __FILE__\n# define __FILE__ "HIDDEN_FOR_NVCC_DETERMINISM.cu"\n#endif\n:g' \
-              /opt/PyTorch-${PYTORCH_PREFIX_SUBDIR}/third_party/gloo/gloo/common/string.h
           
           
           # Create env, install wheel first (becauses the requirements need it),
           # then reqs, then build PyTorch.
           export MAX_JOBS=4
-          export LD_LUA_LOGNAME="/opt/log-python${PYV}-cuda${CUDA}-v${PYTORCH_VERSION}.txt"
           PROG=""
           PROG="$PROG""cd /opt/PyTorch; "
           PROG="$PROG""python${PYV} -m venv venv; "
@@ -730,8 +675,8 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
           
           # Leave
           umount "PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns"
-          rm -f  "PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns"
-          rm -Rf "PyTorch-${PYTORCH_PREFIX_SUBDIR}"
+          rm -Rf "PyTorch-${PYTORCH_PREFIX_SUBDIR}-ns" \
+                 "PyTorch-${PYTORCH_PREFIX_SUBDIR}"
         ) &
       fi
     done
@@ -746,46 +691,3 @@ rm -Rf PyTorch PyTorch-*
 #
 ccache -s
 ccache -C
-
-#
-# Reproducible:
-#   - libasmjit.a
-#   - libbenchmark.a
-#   - libbenchmark_main.a
-#   - libCaffe2_perfkernels_avx.a
-#   - libCaffe2_perfkernels_avx2.a
-#   - libCaffe2_perfkernels_avx512.a
-#   - libcaffe2_protos.a
-#   - libclog.a
-#   - libcpuinfo.a
-#   - libcpuinfo_internals.a
-#   - libdnnl.a == libmkldnn.a
-#   - libfbgemm.a
-#   - libfmt.a
-#   - libfoxi_loader.a
-#   - libgloo.a
-#   - libgmock.a
-#   - libgmock_main.a
-#   - libgtest.a
-#   - libgtest_main.a
-#   - libkineto.a
-#   - libnnpack_reference_layers.a
-#   - libnvonnxparser_static.a
-#   - libonnx.a
-#   - libonnx_proto.a
-#   - libprotobuf.a
-#   - libprotobuf-lite.a
-#   - libprotoc.a
-#   - libpthreadpool.a
-#   - libpytorch_qnnpack.a
-#   - libqnnpack.a
-#   - libsleef.a
-#   - libtensorpipe.a
-#   - libtensorpipe_uv.a
-#   - libXNNPACK.a
-#   - libzstd.a
-#
-# Irreproducible:
-#   - libnnpack.a
-#   - libgloo_cuda.a
-#
