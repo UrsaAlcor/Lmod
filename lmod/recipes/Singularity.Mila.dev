@@ -487,8 +487,8 @@ for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
     if [ ! -d NCCL ]; then git clone https://github.com/NVIDIA/nccl.git NCCL; fi
     (
       cd NCCL
-      if [ "$NCCL_VERSION" = "2.10.3-1" ];
-        cd NCCL; git checkout 5f2f2f670f2604ff44d1f996733e218c0743af73; cd ..
+      if [ "$NCCL_VERSION_BUILD" = "2.10.3-1" ]; then
+        git checkout 5f2f2f670f2604ff44d1f996733e218c0743af73
       else
         git checkout v$NCCL_VERSION_BUILD
       fi
