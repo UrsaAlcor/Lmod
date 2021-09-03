@@ -487,7 +487,11 @@ for CUDA in 10.2 11.0 11.1 11.2 11.3 11.4; do
     if [ ! -d NCCL ]; then git clone https://github.com/NVIDIA/nccl.git NCCL; fi
     (
       cd NCCL
-      git checkout v$NCCL_VERSION_BUILD
+      if [ "$NCCL_VERSION" = "2.10.3-1" ];
+        cd NCCL; git checkout 5f2f2f670f2604ff44d1f996733e218c0743af73; cd ..
+      else
+        git checkout v$NCCL_VERSION_BUILD
+      fi
       export PATH="$TK/$CUDA/bin:${PATH}"
       export CPATH="$TK/$CUDA/include"
       export LIBRARY_PATH="$TK/$CUDA/lib64"
