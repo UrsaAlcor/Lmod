@@ -33,7 +33,7 @@ meson subprojects download
 for BUILDROOT in /opt/buildroot/*; do
   # Create Buildroot cross-toolchain in $BUILDROOT
   cd "${BUILDROOT}"
-  make -C /opt/Alcor/subprojects/buildroot-2021.08-rc2 V=1 O=$(pwd)
+  make -C /opt/Alcor/subprojects/buildroot-2021.08-rc3 V=1 O=$(pwd)
   
   # Build using cross-toolchain in $BUILDROOT
   (
