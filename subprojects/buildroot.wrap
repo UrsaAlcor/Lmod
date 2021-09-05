@@ -1,6 +1,6 @@
 [wrap-file]
-directory = buildroot-2021.08-rc3
-source_filename = buildroot-2021.08-rc3.tar.gz
-source_url = https://buildroot.org/downloads/buildroot-2021.08-rc3.tar.gz
-source_hash = cc81d47ddc0c77a247649b0ba541a2bdef7c58699d0383de772cbd4d9782f445
+directory = buildroot-2021.08
+source_filename = buildroot-2021.08.tar.gz
+source_url = https://buildroot.org/downloads/buildroot-2021.08.tar.gz
+source_hash = ee79ca23edb55dffd50037c1629acd23ac0c1ef8eca359fceb58018e39dd86e2
 patch_directory = buildroot
