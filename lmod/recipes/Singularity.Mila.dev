@@ -38,7 +38,7 @@ lmod/recipes/ld.lua                                             /usr/bin/x86_64-
 
 %post
 #
-# Update the system to latest, including the newest CMake from Kitware.
+# Update the system to latest.
 #
 apt-get update  -y
 apt-get upgrade -y
@@ -46,10 +46,14 @@ apt-get install -y python3.6 python3.6-dev python3.6-venv \
                    python3.7 python3.7-dev python3.7-venv \
                    python3.8 python3.8-dev python3.8-venv \
                    python3-setuptools gfortran \
-                   build-essential ccache cmake yasm nasm \
+                   build-essential ccache cmake yasm \
                    zip unzip patchelf gpg wget git graphviz \
                    libnuma-dev
 cd /opt
+
+
+# Handy alias
+alias addto=/cvmfs/config.mila.quebec/lmod/lmod/libexec/addto
 
 
 #
@@ -172,6 +176,31 @@ fi
 
 
 #
+# NASM, the Netwide Assembler
+#
+# No dependencies. Autodetected and used by a number of projects, such as
+#   - libjpeg-turbo
+#   - dav1d
+#   - x264
+#   - x265
+#   - FFmpeg
+#
+NASM_VERSION=2.15.05
+NASM_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/nasm"
+if [ ! -d "$NASM_PREFIX/$NASM_VERSION" ]; then
+  rm -Rf nasm-${NASM_VERSION} nasm-${NASM_VERSION}.tar.gz
+  wget "https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.gz"
+  tar -xf nasm-$NASM_VERSION.tar.gz && cd nasm-$NASM_VERSION
+  ./configure --prefix="$NASM_PREFIX/$NASM_VERSION"
+  make -j$NJ
+  make install
+  cd ..
+  rm -Rf nasm-${NASM_VERSION} nasm-${NASM_VERSION}.tar.gz
+fi
+export PATH="$(addto PATH $NASM_PREFIX/$NASM_VERSION/bin)"
+
+
+#
 # LZ4
 #
 LZ4_VERSION=1.9.3
@@ -185,6 +214,8 @@ if [ ! -d "$LZ4_PREFIX/$LZ4_VERSION" ]; then
   cd ..
   rm -Rf lz4
 fi
+export PATH="$(addto PATH $LZ4_PREFIX/$LZ4_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $LZ4_PREFIX/$LZ4_VERSION/lib/pkgconfig)"
 
 
 #
@@ -201,6 +232,8 @@ if [ ! -d "$LZMA_PREFIX/$LZMA_VERSION" ]; then
   cd  ..
   rm  -Rf xz-${LZMA_VERSION}.tar.gz xz-${LZMA_VERSION}
 fi
+export PATH="$(addto PATH $LZMA_PREFIX/$LZMA_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $LZMA_PREFIX/$LZMA_VERSION/lib/pkgconfig)"
 
 
 #
@@ -219,6 +252,8 @@ if [ ! -d "$ZSTD_PREFIX/$ZSTD_VERSION" ]; then
   cd ..
   rm -Rf zstd
 fi
+export PATH="$(addto PATH $ZSTD_PREFIX/$ZSTD_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $ZSTD_PREFIX/$ZSTD_VERSION/lib/pkgconfig)"
 
 
 #
@@ -244,6 +279,7 @@ if [ ! -d "$LMDB_PREFIX/$LMDB_VERSION" ]; then
   cd ../../..
   rm -Rf lmdb
 fi
+export PATH="$(addto PATH $LMDB_PREFIX/$LMDB_VERSION/bin)"
 
 PYLMDB_VERSION=1.2.1
 PYLMDB_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/py-lmdb"
@@ -300,6 +336,7 @@ if [ ! -d "$OPENBLAS_PREFIX/$OPENBLAS_VERSION" ]; then
   cd ..
   rm -Rf OpenBLAS
 fi
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $OPENBLAS_PREFIX/$OPENBLAS_VERSION/lib/pkgconfig)"
 
 
 #
@@ -443,6 +480,250 @@ if [ ! -d "$FFTW_PREFIX/$FFTW_VERSION" ]; then
   cd  ..
   rm  -Rf fftw-${FFTW_VERSION}.tar.gz fftw-${FFTW_VERSION}
 fi
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $FFTW_PREFIX/$FFTW_VERSION/lib/pkgconfig)"
+
+
+#
+# libjpeg-turbo
+#
+# A SIMD-accelerated, drop-in compatible version of libjpeg 6b.
+# Newer versions of libjpeg (7,8,9) are incompatible with 6b but don't bring
+# enough added value to justify the break, and the community seems to have a
+# mixed opinion of the breaking changes.
+#
+LIBJPEG_TURBO_VERSION=2.1.1
+LIBJPEG_TURBO_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/libjpeg-turbo"
+if [ ! -d "$LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION" ]; then
+  rm -Rf libjpeg-turbo
+  git clone https://github.com/libjpeg-turbo/libjpeg-turbo.git libjpeg-turbo && cd libjpeg-turbo
+  if [ "$LIBJPEG_TURBO_VERSION" = "2.1.1" ]; then
+    git checkout 173900b1cabb027495ae530c71250bcedc9925d5
+  else
+    git checkout "$LIBJPEG_TURBO_VERSION"
+  fi
+  (
+  mkdir build && cd build
+  export CFLAGS="-mtune=haswell"
+  export LDFLAGS="-Wl,-z,now"
+  cmake -G"Unix Makefiles"                                                        \
+        -DCMAKE_BUILD_TYPE=Release                                                \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON                                      \
+        -DCMAKE_INSTALL_PREFIX="$LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION"     \
+        -DCMAKE_INSTALL_LIBDIR="$LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION/lib" \
+        ..
+  make -j$NJ
+  make install
+  )
+  cd ..
+  rm -Rf libjpeg-turbo
+fi
+export PATH="$(addto PATH $LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION/lib/pkgconfig)"
+
+
+#
+# libpng
+#
+LIBPNG_VERSION=1.6.37
+LIBPNG_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/libpng"
+if [ ! -d "$LIBPNG_PREFIX/$LIBPNG_VERSION" ]; then
+  rm  -Rf libpng-${LIBPNG_VERSION}.tar.xz libpng-${LIBPNG_VERSION}
+  wget "https://download.sourceforge.net/libpng/libpng-${LIBPNG_VERSION}.tar.gz"
+  tar -xf libpng-${LIBPNG_VERSION}.tar.gz && cd libpng-${LIBPNG_VERSION}
+  (
+  export CFLAGS="-mtune=haswell"
+  export LINKERFLAGS="-Wl,-z,now"
+  ./configure --enable-static \
+              --enable-shared \
+              --with-pic=yes  \
+              --prefix="$LIBPNG_PREFIX/$LIBPNG_VERSION"
+  make -j$NJ
+  make install
+  )
+  cd ..
+  rm  -Rf libpng-${LIBPNG_VERSION}.tar.gz libpng-${LIBPNG_VERSION}
+fi
+export PATH="$(addto PATH $LIBPNG_PREFIX/$LIBPNG_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $LIBPNG_PREFIX/$LIBPNG_VERSION/lib/pkgconfig)"
+
+
+#
+# dav1d
+#
+DAV1D_VERSION=0.9.2
+DAV1D_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/dav1d"
+if [ ! -d "$DAV1D_PREFIX/$DAV1D_VERSION" ]; then
+  rm -Rf dav1d
+  git clone https://code.videolan.org/videolan/dav1d.git dav1d && cd dav1d
+  git checkout "$DAV1D_VERSION"
+  sed -i -e "s|install *: *true|&, install_rpath: \'\$ORIGIN/../lib\'|g" tools/meson.build
+  (
+  python3.8 -m venv venv
+  . venv/bin/activate
+  python3.8 -m pip install wheel
+  python3.8 -m pip install 'ninja>=1.8.2'
+  python3.8 -m pip install 'meson==0.59.0'
+  meson setup -Dprefix="$DAV1D_PREFIX/$DAV1D_VERSION" \
+              -Dlibdir=lib                            \
+              -Dbuildtype=release                     \
+              -Dstrip=true                            \
+              -Db_staticpic=true                      \
+              -Db_pie=true                            \
+              -Dc_args="-mtune=haswell"               \
+              -Dc_link_args="-Wl,-z,now"              \
+              build .
+  meson compile -C build
+  meson install -C build
+  )
+  cd ..
+  rm  -Rf dav1d
+fi
+export PATH="$(addto PATH $DAV1D_PREFIX/$DAV1D_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $DAV1D_PREFIX/$DAV1D_VERSION/lib/pkgconfig)"
+
+
+#
+# x264
+#
+X264_VERSION=164.1
+X264_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/x264"
+if [ ! -d "$X264_PREFIX/$X264_VERSION" ]; then
+  rm -Rf x264
+  git clone https://code.videolan.org/videolan/x264.git x264 && cd x264
+  if [ "$X264_VERSION" = "164.1" ]; then
+    git checkout ae03d92b52bb7581df2e75d571989cb1ecd19cbd
+  else
+    echo 'Unknown x264 core version number!'
+    exit 1
+  fi
+  (
+  ./configure --enable-static                  \
+              --enable-shared                  \
+              --enable-pic                     \
+              --enable-strip                   \
+              --disable-avs                    \
+              --disable-swscale                \
+              --disable-lavf                   \
+              --disable-ffms                   \
+              --disable-gpac                   \
+              --disable-lsmash                 \
+              --extra-cflags="-mtune=haswell"  \
+              --extra-ldflags="-Wl,-z,now"     \
+              --prefix="$X264_PREFIX/$X264_VERSION"
+  make -j$NJ
+  make install
+  )
+  cd ..
+  rm  -Rf x264
+fi
+export PATH="$(addto PATH $X264_PREFIX/$X264_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $X264_PREFIX/$X264_VERSION/lib/pkgconfig)"
+
+
+#
+# x265
+#
+# The x265 build system is truly arcane and only supports one bit-depth (8/10/12bit)
+# per build, though allows a single library to offer all bit-depths when combined
+# manually. This leads to an ugly sequence of builds and manual links.
+#
+# We first build the 12-bit and 10-bit depths with EXPORT_C_API off, then 8-bit
+# depth with EXPORT_C_API on and EXTRA_LIB pointing to the 12- and 10-bit versions.
+# This makes 8-bit the default bit-depth, while nevertheless statically linking
+# 12-bit and 10-bit and making it available for dynamic selection.
+#
+X265_VERSION=201.1
+X265_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/x265"
+if [ ! -d "$X265_PREFIX/$X265_VERSION" ]; then
+  rm -Rf x265
+  git clone https://bitbucket.org/multicoreware/x265_git.git x265 && cd x265
+  if [ "$X265_VERSION" = "201.1" ]; then
+    git checkout 4c6880de4310ef1a90845f2d4d31c20dee87eba5
+  else
+    echo 'Unknown x265 core version number!'
+    exit 1
+  fi
+  
+  sed -i -e 's|add_definitions(-fPIC)|add_definitions(-fPIC -DPIC)|g' source/CMakeLists.txt
+  
+  (
+    export CFLAGS="-mtune=haswell"
+    export LDFLAGS="-Wl,-z,now"
+    cd build/linux
+    (
+      mkdir 12bit && cd 12bit
+      cmake -G"Unix Makefiles"                                      \
+            -DCMAKE_BUILD_TYPE=Release                              \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON                    \
+            -DENABLE_SHARED=OFF -DEXPORT_C_API=OFF -DENABLE_CLI=OFF \
+            -DHIGH_BIT_DEPTH=ON -DMAIN12=ON                         \
+            ../../../source
+      make -j$NJ
+    )
+    (
+      mkdir 10bit && cd 10bit
+      cmake -G"Unix Makefiles"                                      \
+            -DCMAKE_BUILD_TYPE=Release                              \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON                    \
+            -DENABLE_SHARED=OFF -DEXPORT_C_API=OFF -DENABLE_CLI=OFF \
+            -DHIGH_BIT_DEPTH=ON -DMAIN10=ON                         \
+            ../../../source
+      make -j$NJ
+    )
+    (
+      mkdir 8bit  && cd 8bit
+      ln -sf ../10bit/libx265.a libx265_main10.a
+      ln -sf ../12bit/libx265.a libx265_main12.a
+      cmake -G"Unix Makefiles"                                      \
+            -DCMAKE_BUILD_TYPE=Release                              \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON                    \
+            -DENABLE_SHARED=ON  -DEXPORT_C_API=ON  -DENABLE_CLI=ON  \
+            -DLINKED_10BIT=ON   -DLINKED_12BIT=ON                   \
+            -DEXTRA_LIB="x265_main10.a;x265_main12.a"               \
+            -DEXTRA_LINK_FLAGS=-L.                                  \
+            -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,$ORIGIN/../lib'    \
+            -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=TRUE                \
+            -DCMAKE_INSTALL_PREFIX="$X265_PREFIX/$X265_VERSION"     \
+            -DCMAKE_INSTALL_LIBDIR="$X265_PREFIX/$X265_VERSION/lib" \
+            ../../../source
+      make -j$NJ
+      mv libx265.a libx265_main.a
+      ar -M <<EOF
+CREATE libx265.a
+ADDLIB libx265_main.a
+ADDLIB libx265_main10.a
+ADDLIB libx265_main12.a
+SAVE
+END
+EOF
+      make install
+    )
+  )
+  cd ..
+  rm  -Rf x265
+fi
+export PATH="$(addto PATH $X265_PREFIX/$X265_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $X265_PREFIX/$X265_VERSION/lib/pkgconfig)"
+
+
+#
+# LADSPA, the Linux Audio Developer's Simple Plugin API
+#
+# A very minor, very optional, very easy to install dependency of FFmpeg.
+# No compilation required; Only one header, `ladspa.h`, to install.
+#
+LADSPA_VERSION=1.16
+LADSPA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/ladspa"
+if [ ! -d "$LADSPA_PREFIX/$LADSPA_VERSION" ]; then
+  rm -Rf ladspa_sdk_${LADSPA_VERSION} ladspa_sdk_${LADSPA_VERSION}.tgz
+  wget "http://www.ladspa.org/download/ladspa_sdk_${LADSPA_VERSION}.tgz"
+  tar -xf ladspa_sdk_${LADSPA_VERSION}.tgz
+  mkdir -p "$LADSPA_PREFIX/$LADSPA_VERSION/include"
+  cp ladspa_sdk_${LADSPA_VERSION}/src/ladspa.h "$LADSPA_PREFIX/$LADSPA_VERSION/include"
+  rm -Rf ladspa_sdk_${LADSPA_VERSION} ladspa_sdk_${LADSPA_VERSION}.tgz
+fi
+export CPATH="$(addto CPATH $X265_PREFIX/$X265_VERSION/include)"
+
 
 
 #
@@ -663,7 +944,7 @@ for PYTORCH_VERSION in 1.8.2 1.9.0; do
           
           # Create env, install wheel first (becauses the requirements need it),
           # then reqs, then build PyTorch.
-          export MAX_JOBS=4
+          export MAX_JOBS=2
           PROG=""
           PROG="$PROG""cd /opt/PyTorch; "
           PROG="$PROG""python${PYV} -m venv venv; "
