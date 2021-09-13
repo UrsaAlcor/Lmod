@@ -183,6 +183,7 @@ fi
 #   - dav1d
 #   - x264
 #   - x265
+#   - libmp3lame
 #   - FFmpeg
 #
 NASM_VERSION=2.15.05
@@ -531,7 +532,7 @@ if [ ! -d "$LIBPNG_PREFIX/$LIBPNG_VERSION" ]; then
   wget "https://download.sourceforge.net/libpng/libpng-${LIBPNG_VERSION}.tar.gz"
   tar -xf libpng-${LIBPNG_VERSION}.tar.gz && cd libpng-${LIBPNG_VERSION}
   (
-  export CFLAGS="-mtune=haswell"
+  export CFLAGS="-O2 -mtune=haswell"
   export LINKERFLAGS="-Wl,-z,now"
   ./configure --enable-static \
               --enable-shared \
@@ -545,6 +546,212 @@ if [ ! -d "$LIBPNG_PREFIX/$LIBPNG_VERSION" ]; then
 fi
 export PATH="$(addto PATH $LIBPNG_PREFIX/$LIBPNG_VERSION/bin)"
 export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $LIBPNG_PREFIX/$LIBPNG_VERSION/lib/pkgconfig)"
+
+
+#
+# libgif
+#
+LIBGIF_VERSION=5.2.1
+LIBGIF_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/libgif"
+if [ ! -d "$LIBGIF_PREFIX/$LIBGIF_VERSION" ]; then
+  rm  -Rf giflib-${LIBGIF_VERSION}.tar.gz giflib-${LIBGIF_VERSION}
+  wget "https://netactuate.dl.sourceforge.net/project/giflib/giflib-${LIBGIF_VERSION}.tar.gz"
+  tar -xf giflib-${LIBGIF_VERSION}.tar.gz && cd giflib-${LIBGIF_VERSION}
+  (
+  # Force-override install prefix
+  sed -i -e "s|/usr/local|$LIBGIF_PREFIX/$LIBGIF_VERSION|g" Makefile
+  make -j$NJ
+  make install
+  )
+  cd ..
+  rm  -Rf giflib-${LIBGIF_VERSION}.tar.gz giflib-${LIBGIF_VERSION}
+fi
+export PATH="$(addto PATH $LIBGIF_PREFIX/$LIBGIF_VERSION/bin)"
+
+
+#
+# libtiff (stage 1)
+#
+# Depends on zlib, liblzma, libzstd, webp. There exists a circular dependency
+# between libtiff and libwebp, but the dependency of libtiff on libwebp is
+# optional. So in a 1st-stage build, we build libtiff without libwebp support,
+# then in the 2nd-stage build, together with it.
+#
+LIBTIFF_VERSION=4.3.0
+LIBTIFF_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/libtiff"
+if [ ! -d "$LIBTIFF_PREFIX/$LIBTIFF_VERSION" ]; then
+  rm  -Rf tiff-${LIBTIFF_VERSION}.tar.gz tiff-${LIBTIFF_VERSION}
+  wget "https://download.osgeo.org/libtiff/tiff-${LIBTIFF_VERSION}.tar.gz"
+  tar -xf tiff-${LIBTIFF_VERSION}.tar.gz && cd tiff-${LIBTIFF_VERSION}
+  (
+  export CFLAGS="-O2 -mtune=haswell"
+  export LDFLAGS="-Wl,-z,now"
+  ./configure --enable-static                                                                \
+              --enable-shared                                                                \
+              --enable-rpath                                                                 \
+              --with-pic=yes                                                                 \
+              --with-lzma-include-dir="$LZMA_PREFIX/$LZMA_VERSION/include"                   \
+              --with-lzma-lib-dir="$LZMA_PREFIX/$LZMA_VERSION/lib"                           \
+              --with-zstd-include-dir="$ZSTD_PREFIX/$ZSTD_VERSION/include"                   \
+              --with-zstd-lib-dir="$ZSTD_PREFIX/$ZSTD_VERSION/lib"                           \
+              --with-jpeg-include-dir="$LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION/include" \
+              --with-jpeg-lib-dir="$LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION/lib"         \
+              --prefix="$LIBTIFF_PREFIX/$LIBTIFF_VERSION"
+  make -j$NJ
+  make install
+  touch "$LIBTIFF_PREFIX/$LIBTIFF_VERSION/circulartiff.incomplete"
+  )
+  cd ..
+  rm -Rf tiff-${LIBTIFF_VERSION}
+fi
+# Since this is a stage-1 build, we do not append anything to any paths!
+
+
+#
+# libwebp, handling the WebP image format
+#
+# Depends on libjpeg, libpng, libtiff and libgif. There is an optional, circular
+# dependency of libtiff back onto libwebp.
+#
+LIBWEBP_VERSION=1.2.1
+LIBWEBP_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/libwebp"
+if [ ! -d "$LIBWEBP_PREFIX/$LIBWEBP_VERSION" ]; then
+  rm  -Rf libwebp-${LIBWEBP_VERSION}.tar.gz libwebp-${LIBWEBP_VERSION}
+  wget "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${LIBWEBP_VERSION}.tar.gz"
+  tar -xf libwebp-${LIBWEBP_VERSION}.tar.gz && cd libwebp-${LIBWEBP_VERSION}
+  (
+  export CFLAGS="-O2 -mtune=haswell"
+  export LDFLAGS="-Wl,-z,now"
+  export PATH="$(addto PATH $LIBTIFF_PREFIX/$LIBTIFF_VERSION/bin)"
+  export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $LIBTIFF_PREFIX/$LIBTIFF_VERSION/lib/pkgconfig)"
+  ./configure --enable-static                                                                \
+              --enable-shared                                                                \
+              --with-pic=yes                                                                 \
+              --enable-libwebpdecoder                                                        \
+              --with-pngincludedir="$LIBPNG_PREFIX/$LIBPNG_VERSION/include"                  \
+              --with-pnglibdir="$LIBPNG_PREFIX/$LIBPNG_VERSION/lib"                          \
+              --with-jpegincludedir="$LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION/include"   \
+              --with-jpeglibdir="$LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION/lib"           \
+              --with-tiffincludedir="$LIBTIFF_PREFIX/$LIBTIFF_VERSION/include"               \
+              --with-tifflibdir="$LIBTIFF_PREFIX/$LIBTIFF_VERSION/lib"                       \
+              --with-gifincludedir="$LIBGIF_PREFIX/$LIBGIF_VERSION/include"                  \
+              --with-giflibdir="$LIBGIF_PREFIX/$LIBGIF_VERSION/lib"                          \
+              --prefix="$LIBWEBP_PREFIX/$LIBWEBP_VERSION"
+  make -j$NJ
+  make install
+  )
+  cd ..
+  rm  -Rf libwebp-${LIBWEBP_VERSION}.tar.gz libwebp-${LIBWEBP_VERSION}
+fi
+export PATH="$(addto PATH $LIBWEBP_PREFIX/$LIBWEBP_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $LIBWEBP_PREFIX/$LIBWEBP_VERSION/lib/pkgconfig)"
+
+
+#
+# libtiff (stage 2)
+#
+# Depends on zlib, liblzma, libzstd, webp. There exists a circular dependency
+# between libtiff and libwebp, which we close here, having build libwebp above.
+#
+if [ -f "$LIBTIFF_PREFIX/$LIBTIFF_VERSION/circulartiff.incomplete" ]; then
+  tar -xf tiff-${LIBTIFF_VERSION}.tar.gz && cd tiff-${LIBTIFF_VERSION}
+  (
+  export CFLAGS="-O2 -mtune=haswell"
+  export LDFLAGS="-Wl,-z,now"
+  ./configure --enable-static                                                                \
+              --enable-shared                                                                \
+              --enable-rpath                                                                 \
+              --with-pic=yes                                                                 \
+              --with-lzma-include-dir="$LZMA_PREFIX/$LZMA_VERSION/include"                   \
+              --with-lzma-lib-dir="$LZMA_PREFIX/$LZMA_VERSION/lib"                           \
+              --with-zstd-include-dir="$ZSTD_PREFIX/$ZSTD_VERSION/include"                   \
+              --with-zstd-lib-dir="$ZSTD_PREFIX/$ZSTD_VERSION/lib"                           \
+              --with-jpeg-include-dir="$LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION/include" \
+              --with-jpeg-lib-dir="$LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION/lib"         \
+              --with-webp-include-dir="$LIBWEBP_PREFIX/$LIBWEBP_VERSION/include"             \
+              --with-webp-lib-dir="$LIBWEBP_PREFIX/$LIBWEBP_VERSION/lib"                     \
+              --prefix="$LIBTIFF_PREFIX/$LIBTIFF_VERSION"
+  make -j$NJ
+  rm   -Rf "$LIBTIFF_PREFIX/$LIBTIFF_VERSION"
+  make install
+  )
+  cd ..
+  rm  -Rf tiff-${LIBTIFF_VERSION}.tar.gz tiff-${LIBTIFF_VERSION}
+fi
+export PATH="$(addto PATH $LIBTIFF_PREFIX/$LIBTIFF_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $LIBTIFF_PREFIX/$LIBTIFF_VERSION/lib/pkgconfig)"
+
+
+#
+# liblcms2 (Little CMS)
+#
+# Color management library. Depends on libjpeg and libtiff.
+#
+LIBLCMS_VERSION=2.12
+LIBLCMS_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/liblcms"
+if [ ! -d "$LIBLCMS_PREFIX/$LIBLCMS_VERSION" ]; then
+  rm   -Rf lcms2-${LIBLCMS_VERSION}.tar.gz lcms2-${LIBLCMS_VERSION}
+  wget -O "lcms2-${LIBLCMS_VERSION}.tar.gz" "https://sourceforge.net/projects/lcms/files/lcms/${LIBLCMS_VERSION}/lcms2-${LIBLCMS_VERSION}.tar.gz/download"
+  tar  -xf lcms2-${LIBLCMS_VERSION}.tar.gz && cd lcms2-${LIBLCMS_VERSION}
+  (
+  export CFLAGS="-O2 -mtune=haswell"
+  export LDFLAGS="-Wl,-z,now"
+  ./configure --enable-static                                             \
+              --enable-shared                                             \
+              --with-pic=yes                                              \
+              --with-jpeg="$LIBJPEG_TURBO_PREFIX/$LIBJPEG_TURBO_VERSION"  \
+              --with-tiff="$LIBTIFF_PREFIX/$LIBTIFF_VERSION"              \
+              --prefix="$LIBLCMS_PREFIX/$LIBLCMS_VERSION"
+  make -j$NJ
+  make install
+  )
+  cd ..
+  rm  -Rf lcms2-${LIBLCMS_VERSION}.tar.gz lcms2-${LIBLCMS_VERSION}
+fi
+export PATH="$(addto PATH $LIBLCMS_PREFIX/$LIBLCMS_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $LIBLCMS_PREFIX/$LIBLCMS_VERSION/lib/pkgconfig)"
+
+
+#
+# OpenJPEG
+#
+# A library implementing the JPEG2000 codec, not to be confused with the older (and
+# more popular) JPEG.
+#
+# Built after libpng, libtiff and liblcms2 because the encoder/decoder binaries
+# (though not the library itself) have a dependency on them.
+#
+OPENJPEG_VERSION=2.4.0
+OPENJPEG_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/openjpeg"
+if [ ! -d "$OPENJPEG_PREFIX/$OPENJPEG_VERSION" ]; then
+  rm -Rf openjpeg
+  git clone https://github.com/uclouvain/openjpeg.git openjpeg && cd openjpeg
+  git checkout "v$OPENJPEG_VERSION"
+  (
+  mkdir build && cd build
+  export CFLAGS="-mtune=haswell"
+  export LDFLAGS="-Wl,-z,now"
+  cmake -G"Unix Makefiles"                                                  \
+        -DCMAKE_BUILD_TYPE=Release                                          \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON                                \
+        -DBUILD_SHARED_LIBS:bool=ON                                         \
+        -DBUILD_PKGCONFIG_FILES=ON                                          \
+        -DPNG_LIBRARY="$LIBPNG_PREFIX/$LIBPNG_VERSION/lib/libpng.so"        \
+        -DPNG_PNG_INCLUDE_DIR="$LIBPNG_PREFIX/$LIBPNG_VERSION/include"      \
+        -DTIFF_LIBRARY="$LIBTIFF_PREFIX/$LIBTIFF_VERSION/lib/libtiff.so"    \
+        -DTIFF_INCLUDE_DIR="$LIBTIFF_PREFIX/$LIBTIFF_VERSION/include"       \
+        -DLCMS2_LIBRARY="$LIBLCMS_PREFIX/$LIBLCMS_VERSION/lib/liblcms2.so"  \
+        -DLCMS2_INCLUDE_DIR="$LIBLCMS_PREFIX/$LIBLCMS_VERSION/include"      \
+        -DCMAKE_INSTALL_PREFIX="$OPENJPEG_PREFIX/$OPENJPEG_VERSION"         \
+        ..
+  make -j$NJ
+  make install
+  )
+  cd ..
+  rm -Rf openjpeg
+fi
+export PATH="$(addto PATH $OPENJPEG_PREFIX/$OPENJPEG_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $OPENJPEG_PREFIX/$OPENJPEG_VERSION/lib/pkgconfig)"
 
 
 #
@@ -712,7 +919,7 @@ export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $X265_PREFIX/$X265_VERSION/lib/p
 # A very minor, very optional, very easy to install dependency of FFmpeg.
 # No compilation required; Only one header, `ladspa.h`, to install.
 #
-LADSPA_VERSION=1.16
+LADSPA_VERSION=1.17
 LADSPA_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/ladspa"
 if [ ! -d "$LADSPA_PREFIX/$LADSPA_VERSION" ]; then
   rm -Rf ladspa_sdk_${LADSPA_VERSION} ladspa_sdk_${LADSPA_VERSION}.tgz
@@ -722,8 +929,35 @@ if [ ! -d "$LADSPA_PREFIX/$LADSPA_VERSION" ]; then
   cp ladspa_sdk_${LADSPA_VERSION}/src/ladspa.h "$LADSPA_PREFIX/$LADSPA_VERSION/include"
   rm -Rf ladspa_sdk_${LADSPA_VERSION} ladspa_sdk_${LADSPA_VERSION}.tgz
 fi
-export CPATH="$(addto CPATH $X265_PREFIX/$X265_VERSION/include)"
+export CPATH="$(addto CPATH $LADSPA_PREFIX/$LADSPA_VERSION/include)"
 
+
+#
+# libmp3lame: Lame Ain't an MP3 Encoder
+#
+LIBMP3LAME_VERSION=3.100
+LIBMP3LAME_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/libmp3lame"
+if [ ! -d "$LIBMP3LAME_PREFIX/$LIBMP3LAME_VERSION" ]; then
+  rm -Rf lame-${LIBMP3LAME_VERSION} lame-${LIBMP3LAME_VERSION}.tar.gz
+  wget "https://pilotfiber.dl.sourceforge.net/project/lame/lame/${LIBMP3LAME_VERSION}/lame-${LIBMP3LAME_VERSION}.tar.gz"
+  tar -xf lame-${LIBMP3LAME_VERSION}.tar.gz
+  (
+  cd lame-${LIBMP3LAME_VERSION}
+  export CFLAGS="-O2 -mtune=haswell"
+  export LDFLAGS="-Wl,-z,now"
+  ./configure --enable-static   \
+              --enable-shared   \
+              --enable-nasm     \
+              --with-pic        \
+              --disable-gtktest \
+              --prefix="$LIBMP3LAME_PREFIX/$LIBMP3LAME_VERSION"
+  make -j$NJ
+  make install-strip
+  )
+  rm -Rf lame-${LIBMP3LAME_VERSION} lame-${LIBMP3LAME_VERSION}.tar.gz
+fi
+export PATH="$(addto PATH $LIBMP3LAME_PREFIX/$LIBMP3LAME_VERSION/bin)"
+export PKG_CONFIG_PATH="$(addto PKG_CONFIG_PATH $LIBMP3LAME_PREFIX/$LIBMP3LAME_VERSION/lib/pkgconfig)"
 
 
 #

@@ -176,9 +176,15 @@ for k,v in pairs(foundlist) do
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/fftw/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/libjpeg-turbo/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/libpng/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/libgif/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/libtiff/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/libwebp/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/liblcms/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/openjpeg/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/dav1d/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/x264/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/x265/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/libmp3lame/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cuda/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/cudnn/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl/') or
