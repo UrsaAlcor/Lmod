@@ -1,4 +1,4 @@
 [wrap-git]
 url = https://github.com/luaposix/luaposix.git
-revision = 76befd71c632b6bb8bae0879f87cabaa24b7fa8f
+revision = 14043c5086ae738823a5dfbc9170d9e14193fbef
 patch_directory = luaposix

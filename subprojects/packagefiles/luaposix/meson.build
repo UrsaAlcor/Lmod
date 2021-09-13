@@ -1,5 +1,5 @@
 project('luaposix', 'c',
-    version:         '35.0',
+    version:         '35.1',
     meson_version:   '>=0.58.1',
     license:         'MIT',
 )
@@ -55,8 +55,9 @@ luaposix_c_args += cc.has_header  ('sys/msg.h')                  ? ['-DHAVE_SYS_
 luaposix_c_args += cc.has_function('msgrcv')                     ? ['-DHAVE_MSGRCV']             : []
 luaposix_c_args += cc.has_function('msgsnd')                     ? ['-DHAVE_MSGSND']             : []
 have_sys_socket  = cc.has_header('sys/socket.h') and cc.has_function('socket', dependencies: socket)
-luaposix_c_args += cc.has_header  ('net/if.h')        and have_sys_socket ? ['-DHAVE_NET_IF_H']        : []
-luaposix_c_args += cc.has_header  ('linux/netlink.h') and have_sys_socket ? ['-DHAVE_LINUX_NETLINK_H'] : []
+luaposix_c_args += cc.has_header  ('net/if.h')          and have_sys_socket ? ['-DHAVE_NET_IF_H']          : []
+luaposix_c_args += cc.has_header  ('linux/netlink.h')   and have_sys_socket ? ['-DHAVE_LINUX_NETLINK_H']   : []
+luaposix_c_args += cc.has_header  ('linux/if_packet.h') and have_sys_socket ? ['-DHAVE_LINUX_IF_PACKET_H'] : []
 luaposix_c_args += cc.has_function('statvfs')                    ? ['-DHAVE_STATVFS']            : []
 have_crypt       = cc.has_function('crypt', dependencies: crypt)
 luaposix_c_args += have_crypt                                    ? ['-DHAVE_CRYPT']              : []
