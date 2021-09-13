@@ -740,7 +740,7 @@ export CPATH="$(addto CPATH $X265_PREFIX/$X265_VERSION/include)"
 #
 # NCCL
 #
-NCCL_VERSION_BUILD=2.10.3-1
+NCCL_VERSION_BUILD=2.11.4-1
 NCCL_VERSION=${NCCL_VERSION_BUILD%%-*}   # Strip build number
 NCCL_VERSION=${NCCL_VERSION%.*}          # Strip patch number
 NCCL_PREFIX="/cvmfs/ai.mila.quebec/apps/x86_64/common/nccl"
