@@ -57,6 +57,7 @@ alias addto=/cvmfs/config.mila.quebec/lmod/lmod/libexec/addto
 
 
 #
+# - Silence very noisy warning messages
 # - Silence extremely irritating Git "help" message
 # - Multi-core control.
 # - Increase reproducibility by:
@@ -67,6 +68,12 @@ alias addto=/cvmfs/config.mila.quebec/lmod/lmod/libexec/addto
 #    - Setting PYTHONHASHSEED to 42, to make Python 3.6 dictionaries deterministic.
 # - Remove limits on compiler caching
 #
+SUPPRESSEDXWARN=""
+SUPPRESSEDXWARN="$SUPPRESSEDXWARN -Wno-unused-variable -Wno-unused-function -Wno-unused-label"
+SUPPRESSEDXWARN="$SUPPRESSEDXWARN -Wno-unused-but-set-variable -Wno-maybe-uninitialized "
+SUPPRESSEDXWARN="$SUPPRESSEDXWARN -Wno-cpp -Wno-conversion"
+SUPPRESSEDCWARN="$SUPPRESSEDXWARN -Wno-sign-compare"
+SUPPRESSEDFWARN="$SUPPRESSEDXWARN -Wno-unused-dummy-argument -Wno-argument-mismatch -Wno-tabs"
 NJ=${NJ:-$(nproc)}
 git config --global core.abbrev         12
 git config --global advice.detachedHead false
@@ -192,8 +199,8 @@ if [ ! -d "$NASM_PREFIX/$NASM_VERSION" ]; then
   rm -Rf nasm-${NASM_VERSION} nasm-${NASM_VERSION}.tar.gz
   wget "https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.gz"
   tar -xf nasm-$NASM_VERSION.tar.gz && cd nasm-$NASM_VERSION
-  ./configure --prefix="$NASM_PREFIX/$NASM_VERSION"
-  make -j$NJ
+  ./configure --prefix="$NASM_PREFIX/$NASM_VERSION" > /dev/null
+  make -j$NJ                                        > /dev/null
   make install
   cd ..
   rm -Rf nasm-${NASM_VERSION} nasm-${NASM_VERSION}.tar.gz
@@ -228,8 +235,9 @@ if [ ! -d "$LZMA_PREFIX/$LZMA_VERSION" ]; then
   rm  -Rf xz-${LZMA_VERSION}.tar.gz xz-${LZMA_VERSION}
   wget "https://tukaani.org/xz/xz-${LZMA_VERSION}.tar.gz"
   tar -xf xz-${LZMA_VERSION}.tar.gz && cd xz-${LZMA_VERSION}
-  ./configure --prefix="$LZMA_PREFIX/$LZMA_VERSION"
-  make install -j$NJ
+  ./configure --prefix="$LZMA_PREFIX/$LZMA_VERSION" > /dev/null
+  make -j$NJ                                        > /dev/null
+  make install
   cd  ..
   rm  -Rf xz-${LZMA_VERSION}.tar.gz xz-${LZMA_VERSION}
 fi
@@ -331,7 +339,7 @@ if [ ! -d "$OPENBLAS_PREFIX/$OPENBLAS_VERSION" ]; then
   git clone 'https://github.com/xianyi/OpenBLAS.git' && cd OpenBLAS
   git checkout v${OPENBLAS_VERSION}
   make -j$NJ   USE_THREAD=1 USE_OPENMP=0 BIGNUMA=1 NUM_THREADS=256 BUILD_BFLOAT16=1 TARGET=GENERIC \
-               DYNAMIC_ARCH=1 DYNAMIC_LIST="PRESCOTT NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN"
+               DYNAMIC_ARCH=1 DYNAMIC_LIST="PRESCOTT NEHALEM SANDYBRIDGE HASWELL SKYLAKEX ZEN" > /dev/null
   make install PREFIX="$OPENBLAS_PREFIX/$OPENBLAS_VERSION"
   rmdir "$OPENBLAS_PREFIX/$OPENBLAS_VERSION/bin" || true  # Apparently empty.
   cd ..
@@ -371,6 +379,8 @@ for NPY in 1.19.5 1.20.3 1.21.2; do
         python${PYV} -m venv venv
         . venv/bin/activate
         python -m pip install wheel Cython
+        env CFLAGS="$SUPPRESSEDCWARN" \
+            FFLAGS="$SUPPRESSEDFWARN" \
         python setup.py build ${CPU_BASELINE:+"$CPU_BASELINE"} bdist_wheel
         deactivate
         mkdir -p "${NPY_PREFIX}/python${PYV}-v${NPY}"
@@ -411,6 +421,8 @@ for SPY in 1.5.4 1.6.3 1.7.1; do
         . venv/bin/activate
         export PYTHONPATH="${NPY_PREFIX}/python${PYV}-v${NPY_OLD}:${PYTHONPATH}"
         python -m pip install wheel Cython pythran pybind11
+        env CFLAGS="$SUPPRESSEDCWARN" \
+            FFLAGS="$SUPPRESSEDFWARN" \
         python setup.py bdist_wheel
         deactivate
         mkdir -p "${SPY_PREFIX}/python${PYV}-v${SPY}"
