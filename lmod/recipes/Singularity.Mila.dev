@@ -743,6 +743,8 @@ if [ ! -d "$OPENJPEG_PREFIX/$OPENJPEG_VERSION" ]; then
         -DLCMS2_LIBRARY="$LIBLCMS_PREFIX/$LIBLCMS_VERSION/lib/liblcms2.so"  \
         -DLCMS2_INCLUDE_DIR="$LIBLCMS_PREFIX/$LIBLCMS_VERSION/include"      \
         -DCMAKE_INSTALL_PREFIX="$OPENJPEG_PREFIX/$OPENJPEG_VERSION"         \
+        -DCMAKE_EXE_LINKER_FLAGS='-Wl,-rpath,$ORIGIN/../lib'                \
+        -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=TRUE                            \
         ..
   make -j$NJ
   make install
