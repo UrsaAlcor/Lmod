@@ -174,7 +174,7 @@ for k,v in pairs(foundlist) do
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/zstd/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/lmdb/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/fftw/') or
-       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/libjpeg-turbo/') or
+       v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/libjpeg%-turbo/') or  -- FFS: A - char must be escaped!
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/libpng/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/libgif/') or
        v:match('^/cvmfs/ai.mila.quebec/apps/x86_64/common/libtiff/') or
