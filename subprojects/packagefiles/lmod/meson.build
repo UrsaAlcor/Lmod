@@ -1,5 +1,5 @@
 project('Lmod', 'c',
-    version:         '8.5.9',
+    version:         '8.5.22',
     meson_version:   '>=0.58.1',
     license:         'MIT',
 )

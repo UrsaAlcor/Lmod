@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: alpine:3.14.1
+From: alpine:3.14.2
 Stage: setup
 
 
@@ -54,7 +54,7 @@ done
 
 
 Bootstrap: docker
-From: alpine:3.14.1
+From: alpine:3.14.2
 Stage: final
 
 
