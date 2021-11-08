@@ -1,4 +1,4 @@
 [wrap-git]
 url = https://github.com/TACC/Lmod.git
-revision = 010b58c1d56fa889124e051efd892b52550c7549
+revision = 82aefacc252f3447f1d3d431698b74974606f3cd
 patch_directory = lmod
