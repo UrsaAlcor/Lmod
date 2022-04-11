@@ -54,7 +54,7 @@
 
 ## TeX
 **.aux
-**.blg
+**.blg   
 **.synctex.gz
 
 ## Backup File
@@ -69,3 +69,4 @@
 
 build/
 modules/
+lua/buildroot/

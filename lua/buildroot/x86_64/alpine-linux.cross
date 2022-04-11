@@ -1,0 +1,16 @@
+[constants]
+tune_cpu    = 'haswell'    # Should perform well on Zen2 as well
+tool_prefix = 'x86_64-alpine-linux-musl-'
+
+[host_machine]
+system     = 'linux'
+cpu_family = 'x86_64'
+cpu        = 'x86_64'
+endian     = 'little'
+
+[binaries]
+c     = tool_prefix + 'gcc'
+strip = tool_prefix + 'strip'
+
+[built-in options]
+c_args = ['-mtune='+tune_cpu, '-march=x86-64']

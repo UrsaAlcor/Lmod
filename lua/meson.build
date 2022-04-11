@@ -4,7 +4,7 @@ if arch_name=='ppc64' and host_machine.endian()=='little'
 endif
 version_maj = meson.project_version().split('.')[0]
 version_min = meson.project_version().split('.')[1]
-binary_name = f'lua@version_maj@.@version_min@.@arch_name@'
+binary_name = f'lua'
 
 
 executable(
