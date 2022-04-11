@@ -9,4 +9,4 @@ project('Alcor', 'c',
 )
 
 cc = meson.get_compiler('c')
-subdir('lmod/lua')
+subdir('lua')

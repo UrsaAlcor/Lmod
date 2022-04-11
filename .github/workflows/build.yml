@@ -1,0 +1,41 @@
+name: build
+
+on:
+  pull_request:
+    branches:
+      - master
+  release:
+    types:
+      [published]
+  push:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    container:
+      image: alpine
+
+    steps:
+    - uses: actions/checkout@v1
+
+    - name: Install dependencies
+      run: |
+        apk update  -U
+        apk upgrade -U --available
+        apk add     -U alpine-sdk git coreutils findutils ncurses-dev strace nano \
+                      file patch less grep perl rsync bash zsh tcsh fish procps \
+                      libtool autoconf automake groff bsd-compat-headers \
+                      linux-headers util-linux python3 meson
+        git config --global advice.detachedHead false
+
+    - name: Build Static Lua
+      run: |
+        bash install.sh
+  
+    - name: Save Build
+      uses: actions/upload-artifact@v3
+      with:
+        name: lua_static_x86_64
+        path: |
+          modules/**

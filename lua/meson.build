@@ -8,7 +8,8 @@ binary_name = f'lua@version_maj@.@version_min@.@arch_name@'
 
 
 executable(
-    binary_name, [],
+    binary_name, 
+    [],
     dependencies: [
         subproject('lua')     .get_variable('lua_dep'),
         subproject('lfs')     .get_variable('lfs_dep'),
