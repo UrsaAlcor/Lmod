@@ -11,6 +11,23 @@ on:
   workflow_dispatch:
 
 jobs:
+  create_release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.release.outputs.upload_url }}
+  
+    steps:
+      - name: Create Release
+        uses: actions/create-release@v1
+        id: release
+        with:
+          draft: false
+          prerelease: false
+          release_name: ${{ github.ref }}
+          tag_name: ${{ github.ref }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
   compile:
     runs-on: ubuntu-latest
     container:
@@ -35,10 +52,16 @@ jobs:
     - name: Build Static Lua
       run: |
         bash install.sh ${{ matrix.arch }}
+
+    - name: Package Binaries
+      run: |
+        zip -r lua_static_${{ matrix.arch }}.zip modules
   
-    - name: Save Build
-      uses: actions/upload-artifact@v3
+    - name: Upload Release Binaries
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       with:
-        name: lua_static_${{ matrix.arch }}
-        path: |
-          modules/**
+        upload_url: ${{ needs.create_release.outputs.upload_url }}
+        asset_path: lua_static_${{ matrix.arch }}.zip
+        asset_name: lua_static_${{ matrix.arch }}

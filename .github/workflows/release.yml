@@ -1,7 +1,12 @@
 name: release
 
 on:
+  push:
+    tags:
+      - 'v*'
+
   workflow_dispatch:
+
 
 jobs:
   create_release:
