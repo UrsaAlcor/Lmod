@@ -11,23 +11,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  create_release:
-    runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.release.outputs.upload_url }}
-  
-    steps:
-      - name: Create Release
-        uses: actions/create-release@v1
-        id: release
-        with:
-          draft: false
-          prerelease: false
-          release_name: ${{ github.ref }}
-          tag_name: ${{ github.ref }}
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-
   compile:
     runs-on: ubuntu-latest
     container:
@@ -53,15 +36,24 @@ jobs:
       run: |
         bash install.sh ${{ matrix.arch }}
 
-    - name: Package Binaries
+    - name: Package Module
       run: |
         zip -r lua_static_${{ matrix.arch }}.zip modules
   
+    - name: Get release
+      if: startsWith(github.ref, 'refs/tags')
+      id: get_release
+      uses: bruceadams/get-release@v1.2.3
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
     - name: Upload Release Binaries
+      if: startsWith(github.ref, 'refs/tags')
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ github.token }}
       with:
-        upload_url: ${{ needs.create_release.outputs.upload_url }}
+        upload_url: ${{ steps.get_release.outputs.upload_url }}
         asset_path: lua_static_${{ matrix.arch }}.zip
         asset_name: lua_static_${{ matrix.arch }}
+        asset_content_type: application/octet-stream
