@@ -15,6 +15,8 @@ executable(
         subproject('lfs')     .get_variable('lfs_dep'),
         subproject('lpeg')    .get_variable('lpeg_dep'),
         subproject('luaposix').get_variable('luaposix_dep'),
+        # Note that lmod has a few C modules that are expected to be
+        # compiled, so we compile them right now and link them as well
         subproject('lmod')    .get_variable('lmod_dep'),
     ],
     link_args: cc.get_supported_link_arguments([

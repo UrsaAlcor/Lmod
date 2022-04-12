@@ -11,7 +11,7 @@ Features
     * lpeg
     * luaposix
 
-* build using alpine linux 
+* Build using alpine linux 
     * statically linked against musl (no dependency on any system libraries)
 
 * Cross compiled

@@ -29,7 +29,7 @@ jobs:
         apk add     -U alpine-sdk git coreutils findutils ncurses-dev strace nano \
                       file patch less grep perl rsync bash zsh tcsh fish procps \
                       libtool autoconf automake groff bsd-compat-headers \
-                      linux-headers util-linux python3 meson
+                      linux-headers util-linux python3 meson zip
         git config --global advice.detachedHead false
 
     - name: Build Static Lua
