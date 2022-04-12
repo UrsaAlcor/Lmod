@@ -55,5 +55,5 @@ jobs:
       with:
         upload_url: ${{ steps.get_release.outputs.upload_url }}
         asset_path: lua_static_${{ matrix.arch }}.zip
-        asset_name: lua_static_${{ matrix.arch }}
+        asset_name: lua_static_${{ matrix.arch }}.zip
         asset_content_type: application/octet-stream
