@@ -1,18 +1,20 @@
 #!/bin/bash
 
 origin=$(pwd)
-base=$origin/modules
+lmod_install=$origin/lmod
+modules=$lmod_install/modules
 
 # Use noarch lua
 lua_version=$(cd subprojects/lua && git describe --tags --abbrev=0)
-lua=$base/lua/$lua_version/noarch/lua
-luac=$base/lua/$lua_version/noarch/luac
+lua=$modules/lua/$lua_version/noarch/lua
+luac=$modules/lua/$lua_version/noarch/luac
 
-# Setup lmod in noarch
+# Setup lmod using lua noarch
 lmod_src=$origin/subprojects/lmod
 lmod_version=$(cd subprojects/lmod && git describe --tags --abbrev=0)
-lmod_base=$base/lmod/$lmod_version/
-lmod_config=$base/lmod/modulespath
+lmod_base=$lmod_install/$lmod_version/
+lmod_config=$lmod_install/config
+lmod_modulespath=$lmod_config/modulespath
 
 mkdir -p $lmod_config
 mkdir -p $lmod_base
@@ -23,16 +25,17 @@ mkdir -p $lmod_base
 
 cd $lmod_src
 
-./configure --prefix="$base"                    \
+./configure --prefix="$origin"                  \
             --with-lua="$lua"                   \
             --with-luac="$luac"                 \
             --with-tcl=no                       \
-            --with-module-root-path=""          \
+            --with-module-root-path="$modules"  \
             --with-ModulePathInit=$lmod_config  \
             --with-shortTime=3600               \
             --with-availExtensions=yes          \
             --with-caseIndependentSorting=no    \
             --with-colorize=yes                 \
             --with-useDotFiles=yes
+            # -sysconfdir
 
 make install

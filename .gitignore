@@ -68,5 +68,5 @@
 ._.DS_Store
 
 build/
-modules/
 lua/buildroot/
+/lmod/

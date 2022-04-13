@@ -1,7 +1,7 @@
 #!/bin/bash
 
 origin=$(pwd)
-base=$origin/modules
+base=$origin/lmod/modules
 
 arch=${1:-x86_64}
 
@@ -51,3 +51,6 @@ ln -f -s lua_main lua
 ln -f -s lua_main luac
 
 cd $origin
+
+# Turn our lua installaion into a module
+cp "lua/modulefile.lua" "$base/lua/$version.lua"

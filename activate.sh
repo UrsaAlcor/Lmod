@@ -1,9 +1,14 @@
 #!/bin/sh
 
-origin=$(pwd)
-base=$origin/modules
+# Activates the lmod installation
+# ===============================
 
-export MODDULEPATH=$base
-source $base/lmod/lmod/init/profile
+origin=$(pwd)
+root=$origin/lmod
+modules=$origin/lmod/modules
+
+export MODULEPATH_ROOT=$modules
+export MODULEPATH=$modules
+source $root/lmod/init/profile
 
 type module
