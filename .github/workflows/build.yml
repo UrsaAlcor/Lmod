@@ -34,7 +34,7 @@ jobs:
 
     - name: Build Static Lua
       run: |
-        bash install.sh ${{ matrix.arch }}
+        bash setup.sh ${{ matrix.arch }}
 
     - name: Package Module
       run: |

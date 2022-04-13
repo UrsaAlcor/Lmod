@@ -39,3 +39,6 @@ cd $lmod_src
             # -sysconfdir
 
 make install
+
+# Copy configuration files
+cp $origin/config/* lmod/config/

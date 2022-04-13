@@ -1,4 +1,4 @@
 #!/bin/bash
 
-bash setup_lua.sh
-bash setup_lmod.sh
+bash setup_lua.sh "$@"
+bash setup_lmod.sh "$@"
