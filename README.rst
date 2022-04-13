@@ -1,5 +1,5 @@
-Lua
-===
+Lmod
+====
 
 Standalone lua installation engineered for a multi arch Lmod installation.
 
@@ -20,14 +20,36 @@ Features
     * riscv64
     * aarch64
 
-Layout
-------
+
+Module Installation
+-------------------
+
+You can simply download our lmod release and unzip to the desired location.
+You will need to update lmod to use the new location using 'move.sh'
 
 .. code-block:: bash
 
-   lua/
+   modules/
+   ├── lmod
+   |   └── 8.5.23
+   ├── lua/
+   |   └── v5.4.3
+   |       ├── noarch/bin
+   |       ├── aarch64/bin
+   |       ├── ppc64le/bin
+   |       ├── riscv64/bin
+   |       └── x86_64/bin
+   └── <package>/<version>/<arch>/
+
+
+Project Layout
+---------------
+
+.. code-block:: bash
+
+   lmod/
    ├── build/
-   ├── modules/lua/<version>/<arch>/bin/lua
+   ├── modules/lua/<version>/<arch>/bin/lua 
    ├── lua/                                     
    │   ├── buildroot        # Rules to compile lua on different arch
    |   |   ├── aarch64
