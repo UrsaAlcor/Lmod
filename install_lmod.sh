@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 origin=$(pwd)
 base=$origin/modules
@@ -12,7 +12,7 @@ luac=$base/lua/$lua_version/noarch/luac
 lmod_src=$origin/subprojects/lmod
 lmod_version=$(cd subprojects/lmod && git describe --tags --abbrev=0)
 lmod_base=$base/lmod/$lmod_version/
-lmod_config=$base/lmod/config
+lmod_config=$base/lmod/modulespath
 
 mkdir -p $lmod_config
 mkdir -p $lmod_base
@@ -27,7 +27,7 @@ cd $lmod_src
             --with-lua="$lua"                   \
             --with-luac="$luac"                 \
             --with-tcl=no                       \
-            --with-module-root-path=$base       \
+            --with-module-root-path=""          \
             --with-ModulePathInit=$lmod_config  \
             --with-shortTime=3600               \
             --with-availExtensions=yes          \

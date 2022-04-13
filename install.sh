@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
-sh install_lua.sh
-sh install_lmod.sh
+bash install_lua.sh
+bash install_lmod.sh
