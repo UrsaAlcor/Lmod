@@ -1,9 +1,17 @@
 #!/bin/bash
 
-origin=$(pwd)
-base=$origin/lmod/modules
+
+# Get Arguments
+# =================
 
 arch=${1:-x86_64}
+
+cwdpath=$(pwd)
+origin=${2:-$cwdpath}
+
+# =================
+
+base=$origin/lmod/modules
 
 rm -rf build
 meson subprojects download

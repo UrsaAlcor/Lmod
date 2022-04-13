@@ -1,7 +1,8 @@
 Lmod
 ====
 
-Standalone lua installation engineered for a multi arch Lmod installation.
+Standalone lmod installation engineered for heterogeneous cluster 
+(CPU/GPU & multi arch).
 
 Features
 --------
@@ -24,44 +25,24 @@ Features
 Module Installation
 -------------------
 
+
+You can use the install script in this repository.
+For multi arch installation you can install multiple releases at the same location.
+
 .. code-block::
 
-   # Fetch release
-   version=v0.0.0
-   wget https://github.com/UrsaAlcor/Lmod/releases/download/$version/lmod_x86_64 -O lmod_x86_64.zip
-
-   # Install lmod to the desired location
-   dest="/opt/modules"
-   unzip lmod_x86_64
-
-   ## Move modules to their final destination
-   ./lmod_x86_64/modules/admin/relocate.sh $(pwd)/lmod_x86_64/modules $dest
-
-   ## Patch shell profiles to automatically enable lmod
-   $dest/modules/admin/patch.sh 
-
-   ## Try that the installation was successful
-   # Lua is not accesible by default
-   which lua
-
-   # Lua is now set
-   module load lua/v5.4.3
-   which lua
-   /home/newton/work/Alcor/modules/lua/v5.4.3/x86_64/bin/lua
-
-
-You can simply download our lmod release and unzip to the desired location.
-You will need to update lmod to use the new location using 'move.sh'
+   bash install.sh <version> <arch> <dest>
 
 
 .. code-block:: bash
 
    lmod/
-   ├── 8.5.23/..
-   ├── config
+   ├── 8.5.23
+   ├── lmod                            # Points to the current version of lmod
+   ├── config                          # Default config of lmod
    └── modules
        ├── <package>/<version>/<arch>/
-       └── lua/
+       └── lua/                        # lua used by lmod, also a valid module for testing
            ├── v5.4.3.lua
            └── v5.4.3
                ├── noarch/bin
@@ -127,4 +108,4 @@ Installation from source
 
 .. code-block::
 
-   setup.sh
+   bash setup.sh <arch> <intall_path>

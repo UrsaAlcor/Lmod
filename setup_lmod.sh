@@ -1,6 +1,12 @@
 #!/bin/bash
 
-origin=$(pwd)
+# Get Arguments
+# =================
+cwdpath=$(pwd)
+origin=${2:-$cwdpath}
+
+# =================
+
 lmod_install=$origin/lmod
 modules=$lmod_install/modules
 
@@ -41,4 +47,8 @@ cd $lmod_src
 make install
 
 # Copy configuration files
-cp $origin/config/* lmod/config/
+cp $origin/config/lmod* lmod/config/
+cp -R $origin/etc/ lmod/config/etc
+
+mkdir -p lmod/scripts
+cp relocate.sh lmod/scripts/
