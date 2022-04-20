@@ -23,7 +23,7 @@ rm -rf build
 meson subprojects download
 
 version=$(cd subprojects/lua && git describe --tags --abbrev=0)
-loc=$dist/lua/$version/$arch
+loc=$dist/$arch/lua/$version
 
 mkdir -p $loc/bin
 rm -rf $loc/bin/*
@@ -51,14 +51,15 @@ meson setup -Dprefix=$loc       \
 meson compile -C build
 meson install -C build
 
-mkdir -p $dist/lua/$version/noarch
+mkdir -p $dist/$arch/lua/$version
+mkdir -p $dist/noarch/lua/$version
 
 # Make a bash wrapper that will select the right arch at runtime
-echo -e "#!/bin/sh\nexec \"$dist/lua/$version/\$(uname -m)/bin/lua\" \"\$@\"" > "$dist/lua/$version/noarch/lua"
-echo -e "#!/bin/sh\nexec \"$dist/lua/$version/\$(uname -m)/bin/luac\" \"\$@\"" > "$dist/lua/$version/noarch/luac"
+echo -e "#!/bin/sh\nexec \"$dist/\$(uname -m)/lua/$version/bin/lua\" \"\$@\"" > "$dist/noarch/lua/$version/lua"
+echo -e "#!/bin/sh\nexec \"$dist/\$(uname -m)/lua/$version/bin/luac\" \"\$@\"" > "$dist/noarch/lua/$version/luac"
 
-chmod 755 $dist/lua/$version/noarch/lua
-chmod 755 $dist/lua/$version/noarch/luac
+chmod 755 $dist/noarch/lua/$version/lua
+chmod 755 $dist/noarch/lua/$version/luac
 
 # Create the symbolic link for lua & luac using our unified binary
 mv $loc/bin/lua $loc/bin/lua_main

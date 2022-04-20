@@ -7,12 +7,12 @@ Standalone lmod installation engineered for heterogeneous cluster
 Features
 --------
 
-* Statically include
+* Statically linked against (i.e squashed dependencies)
     * lfs
     * lpeg
     * luaposix
 
-* Build using alpine linux 
+* Built using alpine linux 
     * statically linked against musl (no dependency on any system libraries)
 
 * Cross compiled
@@ -24,7 +24,6 @@ Features
 
 Module Installation
 -------------------
-
 
 You can use the install script in this repository.
 For multi arch installation you can install multiple releases at the same location.

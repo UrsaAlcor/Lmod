@@ -17,8 +17,8 @@ dist=$origin/lmod/dist
 # Use noarch lua
 lua_version=$(cd subprojects/lua && git describe --tags --abbrev=0)
 
-lua=$dist/lua/$lua_version/noarch/lua
-luac=$dist/lua/$lua_version/noarch/luac
+lua=$dist/noarch/lua/$lua_version/lua
+luac=$dist/noarch/lua/$lua_version/luac
 
 # Setup lmod using lua noarch
 lmod_src=$origin/subprojects/lmod
@@ -58,16 +58,11 @@ cd $lmod_src
 
 make install
 
-# Moves the base modules to our expected location
-rm -rf $origin/lmod/modules/$arch/Core
-mv $origin/lmod/lmod/modulefiles/Core $origin/lmod/modules/$arch
-rmdir $origin/lmod/lmod/modulefiles
-
 # Create a standard environment
 mkdir -p $origin/lmod/modules/$arch/StdEnv
 sed -e "s@\${ALCOR_DIST}@$dist@g" $origin/templates/StdEnv.lua > $origin/lmod/modules/$arch/StdEnv/2022.lua
 cd $origin/lmod/modules/$arch/StdEnv/
-ln -s 2022.lua default
+ln -f -s 2022.lua default
 
 # mkdir -p $lmod_config
 # mkdir -p lmod/scripts
