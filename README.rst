@@ -52,18 +52,18 @@ For multi arch installation you can install multiple releases at the same locati
        └── x86_64/lua/bin/lua
 
 
-* arch is the first folder because
+* Arch is the first folder because
 
-  * Not all modules will support all archs
-    by having each arch with their own modulefiles
+  * Not all modules will support all archs;
+    Having each arch with their own modulefiles
     means that only supported modules will showup 
 
   * Some packages will have different dependencies 
-    depending on the arch, so they will require a different module file.
+    depending on the arch, so they will require a different module files.
 
-  * Not all version will work for a given arch
+  * Not all versions will work for a given arch
 
-* the dist folder can be relocated
+* The dist folder can be relocated
 
 Project Layout
 ---------------
@@ -122,3 +122,4 @@ Installation from source
 .. code-block::
 
    bash setup.sh <arch> <intall_path>
+
