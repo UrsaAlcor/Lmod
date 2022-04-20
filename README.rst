@@ -40,17 +40,31 @@ For multi arch installation you can install multiple releases at the same locati
    ├── 8.5.23
    ├── lmod                            # Points to the current version of lmod
    ├── config                          # Default config of lmod
-   └── modules
-       ├── <package>/<version>/<arch>/
-       └── lua/                        # lua used by lmod, also a valid module for testing
-           ├── v5.4.3.lua
-           └── v5.4.3
-               ├── noarch/bin
-               ├── aarch64/bin
-               ├── ppc64le/bin
-               ├── riscv64/bin
-               └── x86_64/bin
+   ├── modules
+   |   ├── <arch>/<package>/<version>/
+   |   ├── aarch64/lua/v5.4.3.lua
+   |   ├── ppc64le/lua/v5.4.3.lua
+   |   ├── riscv64/lua/v5.4.3.lua
+   |   └── x86_64/lua/v5.4.3.lua
+   └── dist/<arch>/<package>/<version>
+       ├── aarch64/lua/bin/lua
+       ├── ppc64le/lua/bin/lua
+       ├── riscv64/lua/bin/lua
+       └── x86_64/lua/bin/lua
 
+
+* arch is the first folder because
+
+  * Not all modules will support all archs
+    by having each arch with their own modulefiles
+    means that only supported modules will showup 
+
+  * Some packages will have different dependencies 
+    depending on the arch, so they will require a different module file.
+
+  * Not all version will work for a given arch
+
+* the dist folder can be relocated
 
 Project Layout
 ---------------
@@ -59,7 +73,7 @@ Project Layout
 
    lmod/
    ├── build/
-   ├── modules/lua/<version>/<arch>/bin/lua 
+   ├── modules/<arch>/lua/<version>/bin/lua 
    ├── config               # Standard Lmod files
    ├── lua/                                     
    │   ├── buildroot        # Rules to compile lua on different arch
