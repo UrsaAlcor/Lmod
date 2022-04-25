@@ -15,7 +15,6 @@ pathsize=${#oldluapath}
 n=$(($pathsize - $fragsize))
 oldpath=${oldluapath:2:n}
 
-
 echo "Inferred base: $oldpath"
 echo "    Moving to: $dst"
 

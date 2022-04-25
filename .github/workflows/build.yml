@@ -38,7 +38,7 @@ jobs:
 
     - name: Package Module
       run: |
-        zip -r lmod_${{ matrix.arch }}.zip modules
+        zip -r lmod_${{ matrix.arch }}.zip lmod
   
     - name: Get release
       if: startsWith(github.ref, 'refs/tags')
