@@ -65,6 +65,16 @@ For multi arch installation you can install multiple releases at the same locati
 
 * The dist folder can be relocated
 
+Setup
+~~~~~
+
+For a personnal setup you can simply activate the system system by sourcing the 
+appropriate files like what ``activate.sh`` does.
+
+In a cluster you will want users to get access to the modules when login-in;
+you can add files from ``templates/config``.
+
+
 Project Layout
 ---------------
 
@@ -123,3 +133,18 @@ Installation from source
 
    bash setup.sh <arch> <intall_path>
 
+
+Creating modules
+----------------
+
+
+.. code-block::
+
+   $ apt download nginx
+   $ ar x <file>
+   $ ls
+   control.tar.zst
+   data.tar.zst
+   debian-binary
+
+   $ dpkg-deb -xv <file>
