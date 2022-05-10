@@ -69,7 +69,9 @@ if [[ -f "$dist/$(arch)/lua/$lua_version/bin/lua" ]]; then
     mkdir -p $origin/lmod/modules/$arch/StdEnv
     sed -e "s@\${ALCOR_DIST}@$dist@g" $origin/templates/StdEnv.lua > $origin/lmod/modules/$arch/StdEnv/2022.lua
     cd $origin/lmod/modules/$arch/StdEnv/
-    ln -f -s 2022.lua default
+    
+    # This is problematic when we zip the build
+    # ln -f -s 2022.lua default
 
     # mkdir -p $lmod_config
     # mkdir -p lmod/scripts
