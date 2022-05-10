@@ -10,22 +10,22 @@ origin=${2:-$cwdpath}
 
 # =================
 
+lmod_install=$origin/lmod
+modules=$origin/lmod/modules
+dist=$origin/lmod/dist
+
+# Use noarch lua
+lua_version=$(cd subprojects/lua && git describe --tags --abbrev=0)
+
 # We can only generate LMOD install with a valid lua install
 # Because of our lua noarch wrapper we can reuse a x86_64 install
 # with other archs
 # if you want this to execute you can first install x86 lua
 # then the target arch 
-if [[ -f "$dist/$(arch)/lua/$lua_version/lua" ]]; then
+if [[ -f "$dist/$(arch)/lua/$lua_version/bin/lua" ]]; then
 
-    lmod_install=$origin/lmod
-    modules=$origin/lmod/modules
-    dist=$origin/lmod/dist
-
-    # Use noarch lua
-    lua_version=$(cd subprojects/lua && git describe --tags --abbrev=0)
-
-    lua=$dist/noarch/lua/$lua_version/lua
-    luac=$dist/noarch/lua/$lua_version/luac
+    lua=$dist/noarch/lua/$lua_version/bin/lua
+    luac=$dist/noarch/lua/$lua_version/bin/luac
 
     # Setup lmod using lua noarch
     lmod_src=$origin/subprojects/lmod

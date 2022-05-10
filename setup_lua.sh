@@ -52,14 +52,14 @@ meson compile -C build
 meson install -C build
 
 mkdir -p $dist/$arch/lua/$version
-mkdir -p $dist/noarch/lua/$version
+mkdir -p $dist/noarch/lua/$version/bin
 
 # Make a bash wrapper that will select the right arch at runtime
-echo -e "#!/bin/sh\nexec \"$dist/\$(uname -m)/lua/$version/bin/lua\" \"\$@\"" > "$dist/noarch/lua/$version/lua"
-echo -e "#!/bin/sh\nexec \"$dist/\$(uname -m)/lua/$version/bin/luac\" \"\$@\"" > "$dist/noarch/lua/$version/luac"
+echo -e "#!/bin/sh\nexec \"$dist/\$(uname -m)/lua/$version/bin/lua\" \"\$@\"" > "$dist/noarch/lua/$version/bin/lua"
+echo -e "#!/bin/sh\nexec \"$dist/\$(uname -m)/lua/$version/bin/luac\" \"\$@\"" > "$dist/noarch/lua/$version/bin/luac"
 
-chmod 755 $dist/noarch/lua/$version/lua
-chmod 755 $dist/noarch/lua/$version/luac
+chmod 755 $dist/noarch/lua/$version/bin/lua
+chmod 755 $dist/noarch/lua/$version/bin/luac
 
 # Create the symbolic link for lua & luac using our unified binary
 mv $loc/bin/lua $loc/bin/lua_main
